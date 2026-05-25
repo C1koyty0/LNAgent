@@ -6,19 +6,10 @@
 #   bash scripts/init-env.sh
 #   ./scripts/init-env.sh        # 需先 chmod +x scripts/init-env.sh
 #
-# 环境变量:
-#   LNAGENT_ENV_PREFIX  覆盖虚拟环境路径；设为空字符串则使用 mamba 默认 envs 目录
-
 set -euo pipefail
 
 ENV_NAME="LNAgent"
 PYTHON_VERSION="3.12.13"
-
-if [[ -v LNAGENT_ENV_PREFIX ]]; then
-    ENV_PREFIX="$LNAGENT_ENV_PREFIX"
-else
-    ENV_PREFIX="${HOME}/Projects/Python/env/LNAgent"
-fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -58,9 +49,6 @@ env_exists() {
 
     while IFS= read -r line; do
         if [[ "$line" =~ ^[[:space:]]*${ENV_NAME}[[:space:]] ]] || [[ "$line" =~ [[:space:]]${ENV_NAME}[[:space:]] ]]; then
-            return 0
-        fi
-        if [[ -n "$ENV_PREFIX" && "$line" == *"$ENV_PREFIX"* ]]; then
             return 0
         fi
     done <<< "$output"
@@ -104,23 +92,14 @@ if env_exists "$MAMBA_EXE"; then
     echo "==> 环境 '$ENV_NAME' 已存在，跳过创建"
 else
     echo "==> 环境 '$ENV_NAME' 不存在，正在创建 (Python $PYTHON_VERSION)..."
-    if [[ -n "$ENV_PREFIX" ]]; then
-        mkdir -p "$(dirname "$ENV_PREFIX")"
-        "$MAMBA_EXE" create -p "$ENV_PREFIX" "python=${PYTHON_VERSION}" -y
-    else
-        "$MAMBA_EXE" create -n "$ENV_NAME" "python=${PYTHON_VERSION}" -y
-    fi
+    "$MAMBA_EXE" create -n "$ENV_NAME" "python=${PYTHON_VERSION}" -y
     echo "==> 环境创建完成"
 fi
 
 echo "==> 激活环境并安装依赖..."
 init_mamba_shell "$MAMBA_EXE"
 
-if [[ -n "$ENV_PREFIX" ]]; then
-    mamba activate "$ENV_PREFIX"
-else
-    mamba activate "$ENV_NAME"
-fi
+mamba activate "$ENV_NAME"
 
 python --version
 pip install -r "$REQUIREMENTS_FILE"
@@ -128,9 +107,5 @@ pip install -r "$REQUIREMENTS_FILE"
 echo ""
 echo "==> 初始化完成！"
 echo "后续使用时请先激活环境:"
-if [[ -n "$ENV_PREFIX" ]]; then
-    echo "  mamba activate $ENV_PREFIX"
-else
-    echo "  mamba activate $ENV_NAME"
-fi
+echo "  mamba activate $ENV_NAME"
 echo "然后运行: python main.py"

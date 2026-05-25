@@ -15,9 +15,6 @@ $ErrorActionPreference = "Stop"
 
 $EnvName = "LNAgent"
 $PythonVersion = "3.12.13"
-# 与现有 LNAgent 环境路径一致；留空则使用 mamba 默认 envs 目录
-# 可通过环境变量 LNAGENT_ENV_PREFIX 覆盖
-$EnvPrefix = if ($env:LNAGENT_ENV_PREFIX) { $env:LNAGENT_ENV_PREFIX } else { "D:\Projects\Python\env\LNAgent" }
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $RequirementsFile = Join-Path $ProjectRoot "requirements.txt"
@@ -48,17 +45,13 @@ function Find-Mamba {
 function Test-MambaEnv {
     param(
         [string]$MambaExe,
-        [string]$Name,
-        [string]$Prefix
+        [string]$Name
     )
 
     $output = & $MambaExe env list 2>&1 | Out-String
     foreach ($line in ($output -split "`n")) {
         $trimmed = $line.Trim()
         if ($trimmed -match "^\s*$([regex]::Escape($Name))\s+") {
-            return $true
-        }
-        if ($Prefix -and $trimmed -match [regex]::Escape($Prefix)) {
             return $true
         }
     }
@@ -96,20 +89,12 @@ if (-not (Test-Path $RequirementsFile)) {
     exit 1
 }
 
-$envExists = Test-MambaEnv -MambaExe $mambaExe -Name $EnvName -Prefix $EnvPrefix
+$envExists = Test-MambaEnv -MambaExe $mambaExe -Name $EnvName
 
 if (-not $envExists) {
     Write-Host "==> 环境 '$EnvName' 不存在，正在创建 (Python $PythonVersion)..." -ForegroundColor Yellow
 
-    if ($EnvPrefix) {
-        $parentDir = Split-Path -Parent $EnvPrefix
-        if (-not (Test-Path $parentDir)) {
-            New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
-        }
-        & $mambaExe create -p $EnvPrefix "python=$PythonVersion" -y
-    } else {
-        & $mambaExe create -n $EnvName "python=$PythonVersion" -y
-    }
+    & $mambaExe create -n $EnvName "python=$PythonVersion" -y
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "创建环境失败"
@@ -123,11 +108,7 @@ if (-not $envExists) {
 Write-Host "==> 激活环境并安装依赖..." -ForegroundColor Cyan
 Initialize-MambaShell -MambaExe $mambaExe
 
-if ($EnvPrefix) {
-    mamba activate $EnvPrefix
-} else {
-    mamba activate $EnvName
-}
+mamba activate $EnvName
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "激活环境失败"
@@ -145,9 +126,5 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "==> 初始化完成！" -ForegroundColor Green
 Write-Host "后续使用时请先激活环境:"
-if ($EnvPrefix) {
-    Write-Host "  mamba activate $EnvPrefix"
-} else {
-    Write-Host "  mamba activate $EnvName"
-}
+Write-Host "  mamba activate $EnvName"
 Write-Host "然后运行: python main.py"
