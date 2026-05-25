@@ -23,7 +23,10 @@ class NovelSession:
         self._model = model
         self._meta = meta
         self._prompt_builder = prompt_builder or PromptContextBuilder()
-        self._buffer = ShortTermBuffer.from_session(store.load_session())
+        self._buffer = ShortTermBuffer.from_session(
+            store.load_session(),
+            drop_pending_candidate=True,
+        )
 
     @property
     def meta(self) -> NovelMeta:
@@ -38,8 +41,10 @@ class NovelSession:
         return self._buffer.last_candidate
 
     def send(self, user_input: str) -> str:
+        canon = self._store.load_canon()
         messages = self._prompt_builder.build(
             meta=self._meta,
+            canon=canon,
             buffer=self._buffer,
             user_input=user_input,
         )

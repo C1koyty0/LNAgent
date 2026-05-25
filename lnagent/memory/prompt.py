@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
-from lnagent.memory.models import NovelMeta
+from lnagent.memory.models import HotCanon, NovelMeta
 from lnagent.memory.short_term import ShortTermBuffer
 
 _WRITING_INSTRUCTIONS = """\
@@ -19,6 +21,7 @@ class PromptContextBuilder:
         self,
         *,
         meta: NovelMeta,
+        canon: HotCanon,
         buffer: ShortTermBuffer,
         user_input: str,
     ) -> list[BaseMessage]:
@@ -30,6 +33,10 @@ class PromptContextBuilder:
         if meta.world_rules:
             rules_text = "\n".join(f"- {rule}" for rule in meta.world_rules)
             system_parts.append(f"世界规则：\n{rules_text}")
+
+        canon_text = _format_hot_canon(canon)
+        if canon_text:
+            system_parts.append(canon_text)
 
         adopted = buffer.adopted_prose.strip()
         if adopted:
@@ -45,3 +52,15 @@ class PromptContextBuilder:
 
         messages.append(HumanMessage(content=user_input))
         return messages
+
+
+def _format_hot_canon(canon: HotCanon) -> str | None:
+    data = canon.to_dict()
+    if not data["characters"] and not data["world"]["rules"] and not data["plot_threads"]:
+        return None
+
+    return "Hot Canon（已确认设定）：\n" + json.dumps(
+        data,
+        ensure_ascii=False,
+        indent=2,
+    )

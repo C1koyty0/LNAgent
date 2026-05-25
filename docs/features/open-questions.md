@@ -22,7 +22,7 @@
 | **L4** | 🔴 | **meta 哪些字段固定注入 System Prompt？** | 待定字段可能包括：书名、简介、世界规则、文风、人称、禁忌、目标篇幅等。需定义 `meta.json` schema 与注入模板。 |
 | **L1** | 🟡 | **adopt / scene 各需几次 LLM 调用？** | adopt：续写 1 次 + Hot 抽取 1 次；scene：Cold 提案 1 次 + reconcile 1 次？实现阶段按成本与延迟优化，不阻塞架构。 |
 | **T8** | 🟡 | **上下文 token 预算如何分配？** | 各块上限（Hot Canon / 已确认摘要 / 当前场景 / tail）依赖**模型上下文窗口**与实测。MVP 可先全量注入短篇体量，超窗后再裁剪。 |
-| **L6** | 🔴 | **Hot / Cold 抽取用的结构化输出 schema** | JSON schema 是否与 `canon.json` 增量 patch 格式一致？抽取失败时的重试与降级策略？ |
+| **L6** | 🟡 | **Hot / Cold 抽取用的结构化输出 schema** | Phase 2 默认：Hot 抽取输出 JSON patch，覆盖 `characters`、`world.rules[]`、`plot_threads[]`；解析失败提示重试，不 silent fail。Cold 抽取 schema 后续随 Phase 3 再定。 |
 | **L7** | 🔴 | **System Prompt 中「写作任务」与「讨论任务」是否区分** | L5 已允许纯讨论；是否在 system 中提示「讨论输出非正文，勿直接 adopt」？ |
 
 ---
@@ -44,7 +44,7 @@
 
 | ID | 状态 | 问题 | 背景 / 选项 |
 |----|------|------|-------------|
-| **X1** | 🔴 | **多行文本输入如何实现** | `/a` adopt 与 Cold review 需「提交完整文本」。CLI 用结束符（如 `EOF` / `"""`）还是临时文件 / 编辑器？需与后续前端「textarea 一次提交」对齐。 |
+| **X1** | 🟡 | **多行文本输入如何实现** | Phase 2 默认：`/a` adopt 使用多行输入，单独一行 `EOF` 结束提交。Cold review 是否沿用 EOF 或改用编辑器，Phase 3 再定。 |
 | **X2** | 🔴 | **`/fix` 的参数输入方式** | 纠错意图是 `/f` 后同一行，还是进入多轮对话再抽取？ |
 | **X3** | 🔴 | **Cold review 空输入语义** | 文档写「直接回车等同 accept 原文」；多行模式下如何区分「提交编辑」与「accept 原文」？ |
 | **X4** | 🟡 | **命令大小写与前缀** | 是否仅支持 `/a` 小写？`/` 是否必须？ |
@@ -78,3 +78,4 @@
 | 日期 | 说明 |
 |------|------|
 | 2026-05-25 | 初稿：自 memory-architecture §8.2 拆出并扩充 |
+| 2026-05-25 | 补充 Phase 2 默认：`/a` 使用 EOF 多行输入；Hot patch 覆盖 `characters`、`world.rules[]`、`plot_threads[]` |

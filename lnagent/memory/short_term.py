@@ -20,10 +20,23 @@ class ShortTermBuffer:
         self._last_candidate: str | None = None
 
     @classmethod
-    def from_session(cls, session: SceneSession) -> ShortTermBuffer:
+    def from_session(
+        cls,
+        session: SceneSession,
+        *,
+        drop_pending_candidate: bool = False,
+    ) -> ShortTermBuffer:
+        messages = list(session.messages)
+        if (
+            drop_pending_candidate
+            and messages
+            and messages[-1].role == "assistant"
+        ):
+            messages = messages[:-1]
+
         return cls(
             scene_id=session.scene_id,
-            messages=list(session.messages),
+            messages=messages,
             adopted_prose=session.adopted_prose,
         )
 
