@@ -146,16 +146,28 @@ projects/<novel_id>/
   产出：`lnagent/cli/scene.py`
 - [ ] **3.2 Cold 提案**：生成 Cold 提案 → 完整文本 review → `/r` 或提交写入 `synopsis.json`  
   产出：`lnagent/memory/cold_archive.py`
-- [ ] **3.3 新场景启动**：创建 `scene_002`，将 tail 500 字注入 Prompt  
-  产出：prompt + short_term
-- [ ] **3.4 Hot reconcile**：`/sc` 时 batch Hot reconcile（y/n）  
-  产出：canon_extractor
+- [ ] **3.3 新场景启动**：创建 `scene_002`，Prompt 注入 meta + global + 上一场景 Cold + Hot + tail  
+  产出：prompt + short_term + store（`synopsis.json`）
+- [ ] **3.4 Hot reconcile**：`/sc` 时逐条 reconcile `adopt_stack` 中 `accepted_canon=false`（y/n）  
+  产出：canon_extractor + session
 - [ ] **3.5 切换建议**：启发式在回复末尾附加「可考虑 /sc」提示（简版 C6）  
   产出：prompt 或 post-process
 
 **验收**：
 
-- [ ] 完成 scene_001 → `/sc` → 确认摘要 → scene_002 续写带 tail + 已确认 synopsis。
+- [ ] 完成 scene_001 → `/sc` → 确认摘要 → scene_002 续写带 **meta + global + 上一场景 Cold + Hot + tail**。
+
+**Phase 3 已确认细节**：
+
+- **`synopsis.json` 分字段存储**：顶层 `global`（全书梗概）+ `scenes[]` 按场景条目；每条含 `id`、`location`、`time`、`summary`、`key_points[]`。
+- **S5**：每次 Cold **accept 并写入** `scenes[]` 后，再调 LLM **自动 rollup 更新 `global`**。
+- **场景元数据**：`location`、`time`（大致即可）由 Cold 提案 LLM 从本场景已采纳正文抽取；作者 Cold review **仅可改 `summary` 全文**，`location` / `time` **以 LLM 提案为准落盘**。
+- **Cold review 交互**：与 `/a` 相同——多行输入，单独一行 `EOF` 结束；仅 `EOF`（无正文）= 原样采纳提案 `summary`。
+- **`/r` 拒绝 Cold**：不写入该场景 synopsis 条目；**仍切换场景**（递增 `scene_id`、清空短期缓冲、带 tail）。
+- **Hot reconcile（`/sc`）**：**逐条**处理 `adopt_stack` 中 `accepted_canon=false` 的记录，用该条 `text` 抽取 patch 并 y/n；非对全场景正文单次 bulk 抽取。
+- **新场景 Prompt 注入**（进入 `scene_N+1` 时）：`meta.json` + `synopsis.global` + **上一场景刚归档的** `scenes[]` 条目（即「当前 scene cold」）+ `canon.json` + 上一场景 manuscript **tail（约 500 字，按字符）**；**不**注入更早场景的 per-scene 条目。
+- **`/r` 后新场景**：无新 Cold 条目时 Prompt = meta + global（未更新）+ Hot + tail。
+- **C6（MVP）**：启发式规则实现阶段细化；可先 system 提示或简单 adopt 次数阈值。
 
 ---
 
@@ -271,3 +283,4 @@ Phase 3–4 为「记忆闭环」增强，可在 MVP 之后迭代。
 | 日期 | 说明 |
 |------|------|
 | 2026-05-25 | 初稿：Phase 0–4，最小范围 Phase 0–2 |
+| 2026-05-25 | Phase 3 已确认：`synopsis.json` schema、global rollup、Prompt 注入、reconcile 与 `/r` 语义 |
