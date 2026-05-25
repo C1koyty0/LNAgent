@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
+
+_SCENE_ID_PATTERN = re.compile(r"^scene_(\d+)$")
+_TAIL_CHAR_LIMIT = 500
 
 
 @dataclass
@@ -109,7 +113,98 @@ class AdoptRecord:
         )
 
 
+@dataclass
+class SceneSynopsisEntry:
+    id: str
+    location: str
+    time: str
+    summary: str
+    key_points: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "location": self.location,
+            "time": self.time,
+            "summary": self.summary,
+            "key_points": self.key_points,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SceneSynopsisEntry:
+        raw_points = data.get("key_points", [])
+        return cls(
+            id=str(data.get("id", "")),
+            location=str(data.get("location", "")),
+            time=str(data.get("time", "")),
+            summary=str(data.get("summary", "")),
+            key_points=[str(p) for p in raw_points] if isinstance(raw_points, list) else [],
+        )
+
+
+@dataclass
+class ColdSynopsis:
+    global_summary: str = ""
+    scenes: list[SceneSynopsisEntry] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "global": self.global_summary,
+            "scenes": [s.to_dict() for s in self.scenes],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ColdSynopsis:
+        raw_scenes = data.get("scenes", [])
+        scenes = [
+            SceneSynopsisEntry.from_dict(s)
+            for s in raw_scenes
+            if isinstance(s, dict)
+        ]
+        return cls(
+            global_summary=str(data.get("global", "")),
+            scenes=scenes,
+        )
+
+    @classmethod
+    def empty(cls) -> ColdSynopsis:
+        return cls()
+
+    def find_scene(self, scene_id: str) -> SceneSynopsisEntry | None:
+        for entry in self.scenes:
+            if entry.id == scene_id:
+                return entry
+        return None
+
+
 DEFAULT_SCENE_ID = "scene_001"
+
+
+def next_scene_id(scene_id: str) -> str:
+    match = _SCENE_ID_PATTERN.match(scene_id)
+    if not match:
+        raise ValueError(f"无效场景 ID: {scene_id}")
+    number = int(match.group(1)) + 1
+    return f"scene_{number:03d}"
+
+
+def previous_scene_id(scene_id: str) -> str | None:
+    match = _SCENE_ID_PATTERN.match(scene_id)
+    if not match:
+        raise ValueError(f"无效场景 ID: {scene_id}")
+    number = int(match.group(1))
+    if number <= 1:
+        return None
+    return f"scene_{number - 1:03d}"
+
+
+def extract_tail(text: str, *, limit: int = _TAIL_CHAR_LIMIT) -> str:
+    stripped = text.strip()
+    if not stripped:
+        return ""
+    if len(stripped) <= limit:
+        return stripped
+    return stripped[-limit:]
 
 
 @dataclass

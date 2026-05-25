@@ -17,16 +17,14 @@
 | Prompt 上下文组装 | meta + Hot Canon（若有）+ 当前场景历史 → LLM |
 | `/a` adopt | 编辑候选全文 → 追加正文 → Hot diff → **y/n** |
 | `/c` canon | 打印 Hot Canon 摘要 |
-| 基础持久化 | `canon.json`、`session.json`、`manuscript/scene_XXX.md` |
+| `/sc` scene | 场景切换、Cold 摘要 review、`synopsis.json`、新场景 tail 衔接 |
+| 基础持久化 | `canon.json`、`synopsis.json`、`session.json`、`manuscript/scene_XXX.md` |
 
 ### 1.2 本计划**暂不**实现（后续迭代）
 
 | 能力 | 原因 |
 |------|------|
-| `/sc` 场景切换、Cold Archive、tail 衔接 | 依赖 scene 归档与摘要流，作为 **Phase 3** |
 | `/u` undo、`/f` fix | 依赖 adopt 栈与 Canon 快照，作为 **Phase 4** |
-| Hot 抽取 LLM 结构化输出 | Phase 2 完善 |
-| 场景切换启发式（C6） | Phase 3 随 `/sc` 一并接入 |
 | token 预算裁剪（T8） | 短篇先全量注入 |
 | 向量 RAG | 明确不做 |
 
@@ -51,7 +49,8 @@ projects/<novel_id>/
 ├── manuscript/
 │   └── scene_001.md
 ├── memory/
-│   └── canon.json          # 初始可为空结构
+│   ├── canon.json          # Hot Canon
+│   └── synopsis.json       # Cold Archive（global + scenes[]）
 └── session.json            # 对话 + 已 adopt 正文 + scene_id
 ```
 
@@ -112,23 +111,23 @@ projects/<novel_id>/
 
 ### Phase 2：`/a` adopt 与 Hot Canon（核心记忆）
 
-- [ ] **2.1 命令路由**：CLI 支持 `/a`、`/c`、`/h` 及别名；非命令走 `send()`  
+- [x] **2.1 命令路由**：CLI 支持 `/a`、`/c`、`/h` 及别名；非命令走 `send()`  
   产出：`lnagent/cli/commands.py`
-- [ ] **2.2 adopt 输入流**：`/a` 展示 `last_candidate`，读入用户修改后的完整文本；MVP 使用多行输入，单独一行 `EOF` 结束  
+- [x] **2.2 adopt 输入流**：`/a` 展示 `last_candidate`，读入用户修改后的完整文本；MVP 使用多行输入，单独一行 `EOF` 结束  
   产出：`lnagent/cli/adopt.py`
-- [ ] **2.3 正文采纳**：adopt 后追加 `manuscript/scene_001.md` 与 `buffer.adopted_prose`  
+- [x] **2.3 正文采纳**：adopt 后追加 `manuscript/scene_001.md` 与 `buffer.adopted_prose`  
   产出：session + store
-- [ ] **2.4 Hot 抽取**：`CanonExtractor` 让 LLM 从 adopt 文本抽取 Hot 变更，并展示 diff  
+- [x] **2.4 Hot 抽取**：`CanonExtractor` 让 LLM 从 adopt 文本抽取 Hot 变更，并展示 diff  
   产出：`lnagent/memory/canon_extractor.py`
-- [ ] **2.5 Canon 合并**：用户 y/n 确认；确认后 merge 进 `canon.json`，拒绝则只保留正文、不更新 Canon  
+- [x] **2.5 Canon 合并**：用户 y/n 确认；确认后 merge 进 `canon.json`，拒绝则只保留正文、不更新 Canon  
   产出：store
-- [ ] **2.6 adopt 栈**：adopt 时保存回滚所需信息，为 Phase 4 `/u` 预留  
+- [x] **2.6 adopt 栈**：adopt 时保存回滚所需信息，为 Phase 4 `/u` 预留  
   产出：session 内 `adopt_stack[]`
 
 **验收**：
 
-- [ ] 对话生成候选 → `/a` 采纳 → `/c` 可见新能力/状态。
-- [ ] Hot 变更 n 拒绝时，正文已写入但 canon 不变。
+- [x] 对话生成候选 → `/a` 采纳 → `/c` 可见新能力/状态。
+- [x] Hot 变更 n 拒绝时，正文已写入但 canon 不变。
 
 **Phase 2 已确认细节**：
 
@@ -142,20 +141,20 @@ projects/<novel_id>/
 
 ### Phase 3：场景切换与 Cold Archive（记忆闭环）
 
-- [ ] **3.1 场景命令**：`/sc` 校验至少一次 adopt；归档 scene 快照  
+- [x] **3.1 场景命令**：`/sc` 校验至少一次 adopt；归档 scene 快照  
   产出：`lnagent/cli/scene.py`
-- [ ] **3.2 Cold 提案**：生成 Cold 提案 → 完整文本 review → `/r` 或提交写入 `synopsis.json`  
+- [x] **3.2 Cold 提案**：生成 Cold 提案 → 完整文本 review → `/r` 或提交写入 `synopsis.json`  
   产出：`lnagent/memory/cold_archive.py`
-- [ ] **3.3 新场景启动**：创建 `scene_002`，Prompt 注入 meta + global + 上一场景 Cold + Hot + tail  
+- [x] **3.3 新场景启动**：创建 `scene_002`，Prompt 注入 meta + global + 上一场景 Cold + Hot + tail  
   产出：prompt + short_term + store（`synopsis.json`）
-- [ ] **3.4 Hot reconcile**：`/sc` 时逐条 reconcile `adopt_stack` 中 `accepted_canon=false`（y/n）  
+- [x] **3.4 Hot reconcile**：`/sc` 时逐条 reconcile `adopt_stack` 中 `accepted_canon=false`（y/n）  
   产出：canon_extractor + session
-- [ ] **3.5 切换建议**：启发式在回复末尾附加「可考虑 /sc」提示（简版 C6）  
+- [x] **3.5 切换建议**：启发式在回复末尾附加「可考虑 /sc」提示（简版 C6）  
   产出：prompt 或 post-process
 
 **验收**：
 
-- [ ] 完成 scene_001 → `/sc` → 确认摘要 → scene_002 续写带 **meta + global + 上一场景 Cold + Hot + tail**。
+- [x] 完成 scene_001 → `/sc` → 确认摘要 → scene_002 续写带 **meta + global + 上一场景 Cold + Hot + tail**（单元测试覆盖；真实 API 建议手工复验）。
 
 **Phase 3 已确认细节**：
 
@@ -255,9 +254,9 @@ Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 4
 
 | 层级 | 内容 |
 |------|------|
-| 单元测试 | `JsonMemoryStore` 读写、`ShortTermBuffer` adopt 栈、`PromptContextBuilder` 消息条数 |
-| 集成测试 | mock LLM，走通 send → adopt(y) → canon 更新 |
-| 手工 | 真实 API：两轮对话引用前序；adopt 后 `/c` 可见 Hot |
+| 单元测试 | `JsonMemoryStore` 读写、`ShortTermBuffer` adopt 栈、`PromptContextBuilder`（含 tail/Cold）、`synopsis.json`、`/sc` 流程 mock |
+| 集成测试 | mock LLM，走通 send → adopt(y) → canon 更新；finish_scene_switch accept/reject |
+| 手工 | 真实 API：多轮对话；`/a` + `/c`；`scene_001` → `/sc` → `scene_002` 续写 |
 
 不引入额外测试框架依赖；使用 stdlib `unittest` 或 `pytest`（若项目已有则沿用）。
 
@@ -267,14 +266,20 @@ Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 4
 
 MVP（Phase 0–2）视为完成当：
 
-- [ ] `python main.py --project <id>` 可创建 / 打开项目  
-- [ ] 多轮对话中模型能利用当前场景历史  
-- [ ] `/a` 采纳正文并可选写入 Hot Canon（y/n）  
-- [ ] `/c` 查看 Canon；重启后会话与 canon 持久化  
-- [ ] 未 `/a` 的候选退出后丢失  
-- [ ] memory 包与 LangChain 解耦（仅 session 层调用 LLM）  
+- [x] `python main.py --project <id>` 可创建 / 打开项目  
+- [x] 多轮对话中模型能利用当前场景历史  
+- [x] `/a` 采纳正文并可选写入 Hot Canon（y/n）  
+- [x] `/c` 查看 Canon；重启后会话与 canon 持久化  
+- [x] 未 `/a` 的候选退出后丢失  
+- [x] memory 包与 LangChain 解耦（仅 session 层调用 LLM）  
 
-Phase 3–4 为「记忆闭环」增强，可在 MVP 之后迭代。
+Phase 3（场景切换与 Cold Archive）视为完成当：
+
+- [x] `/sc` 在至少一次 `/a` 后可切换场景；Cold accept 写入 `synopsis.json` 并 rollup `global`  
+- [x] `/r` 拒绝 Cold 仍切换场景；新场景 Prompt 含 meta + global + 上一场景 Cold（若有）+ Hot + tail  
+- [x] `/sc` 时逐条 reconcile `adopt_stack` 中 `accepted_canon=false`  
+
+Phase 4（`/u`、`/f`）待迭代。
 
 ---
 
@@ -284,3 +289,4 @@ Phase 3–4 为「记忆闭环」增强，可在 MVP 之后迭代。
 |------|------|
 | 2026-05-25 | 初稿：Phase 0–4，最小范围 Phase 0–2 |
 | 2026-05-25 | Phase 3 已确认：`synopsis.json` schema、global rollup、Prompt 注入、reconcile 与 `/r` 语义 |
+| 2026-05-25 | Phase 2–3 实现完成：勾选任务与验收；补充 Phase 3 DoD |

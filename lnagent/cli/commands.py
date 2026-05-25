@@ -12,6 +12,7 @@ from lnagent.memory.models import HotCanon
 class CommandAction(str, Enum):
     ADOPT = "adopt"
     CANON = "canon"
+    SCENE = "scene"
     HELP = "help"
     MESSAGE = "message"
 
@@ -26,6 +27,7 @@ HELP_TEXT = """\
 可用命令:
   /a, /adopt    采纳上一轮候选正文，并确认 Hot Canon 变更
   /c, /canon    查看当前 Hot Canon
+  /sc, /scene   结束当前场景（须至少一次 /a）；Cold 摘要 review
   /h, /help     显示帮助
   quit/exit/q   退出"""
 
@@ -36,6 +38,8 @@ _COMMAND_ALIASES = {
     "/canon": CommandAction.CANON,
     "/h": CommandAction.HELP,
     "/help": CommandAction.HELP,
+    "/sc": CommandAction.SCENE,
+    "/scene": CommandAction.SCENE,
 }
 
 

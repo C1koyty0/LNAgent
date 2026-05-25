@@ -81,6 +81,22 @@ class ShortTermBuffer:
     def record_adopt(self, record: AdoptRecord) -> None:
         self._adopt_stack.append(record)
 
+    def mark_adopt_canon_accepted(self, index: int, *, accepted: bool) -> None:
+        record = self._adopt_stack[index]
+        self._adopt_stack[index] = AdoptRecord(
+            text=record.text,
+            canon_before=record.canon_before,
+            canon_patch=record.canon_patch,
+            accepted_canon=accepted,
+        )
+
+    def reset_for_new_scene(self, scene_id: str) -> None:
+        self._scene_id = scene_id
+        self._messages.clear()
+        self._adopted_prose = ""
+        self._adopt_stack.clear()
+        self._last_candidate = None
+
     def to_session(self) -> SceneSession:
         return SceneSession(
             scene_id=self._scene_id,

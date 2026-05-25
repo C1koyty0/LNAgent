@@ -11,7 +11,9 @@ from lnagent.cli.commands import (
     format_canon_summary,
     parse_command,
 )
+from lnagent.cli.scene import run_scene_switch
 from lnagent.memory.canon_extractor import CanonPatchParseError
+from lnagent.memory.cold_archive import ColdProposalParseError
 from lnagent.memory.store import JsonMemoryStore
 from lnagent.project import open_or_create_project
 from lnagent.session import NovelSession
@@ -78,14 +80,20 @@ def run_cli(argv: list[str] | None = None) -> None:
             elif command.action == CommandAction.CANON:
                 print(format_canon_summary(store.load_canon()))
                 print()
+            elif command.action == CommandAction.SCENE:
+                run_scene_switch(session)
             elif command.action == CommandAction.HELP:
                 print(HELP_TEXT)
                 print()
             else:
                 reply = session.send(command.text)
                 print(f"助手: {reply}\n")
+                if len(session.adopt_stack) >= 2:
+                    print("提示: 本场景已有多次采纳，可考虑使用 /sc 结束场景。\n")
         except CanonPatchParseError as exc:
             print(f"Hot Canon 抽取失败: {exc}。请重试 /a。\n")
+        except ColdProposalParseError as exc:
+            print(f"Cold Archive 生成失败: {exc}。请重试 /sc。\n")
         except Exception as exc:
             print(f"错误: {exc}\n")
 

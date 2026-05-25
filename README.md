@@ -80,7 +80,7 @@ python main.py --project my_novel
 
 启动后在终端输入创作指示；输入 `quit`、`exit` 或 `q` 退出。项目不存在时将引导创建并填写世界观 meta。
 
-### CLI 命令（规划）
+### CLI 命令
 
 作者通过**显式命令**控制记忆写入；**记忆存储对用户无感知**（JSON 由系统管理，不直接编辑文件）。
 
@@ -105,7 +105,10 @@ LNAgent/
 ├── lnagent/
 │   ├── config.py        # 环境变量配置
 │   ├── llm.py           # 模型初始化
-│   └── chat.py          # 对话客户端
+│   ├── session.py       # 多轮会话（NovelSession）
+│   ├── memory/          # 记忆存储、Prompt、Hot/Cold 抽取
+│   ├── cli/             # /a、/c、/sc 等命令
+│   └── chat.py          # 单轮对话客户端（库用）
 ├── docs/
 │   └── features/        # 功能设计文档
 │       └── memory-architecture.md
@@ -125,10 +128,10 @@ print(reply)
 
 ## 路线图
 
-- [ ] 多轮会话与场景化短期记忆（当前场景 + 前文衔接）
-- [ ] Hot Canon（能力 / 状态即刻生效）与 Cold Archive（叙事摘要作者确认）
-- [ ] Story Bible 与按场景正文归档（`/adopt`、`/scene` 命令）
-- [ ] Cold Archive 确认流（场景摘要 edit / accept / reject）
+- [x] 多轮会话与场景化短期记忆（当前场景 + 前文 tail 衔接）
+- [x] Hot Canon（`/a` + y/n）与 Cold Archive（`/sc` + 摘要 review + `synopsis.json`）
+- [x] 按场景正文归档（`manuscript/scene_XXX.md`）与 `/sc` 场景切换
+- [ ] `/undo`、`/fix` 纠错命令（Phase 4）
 - [ ] 可配置的文风与叙事模板
 - [ ] 向量 RAG 检索（扩展预留，MVP 不做）
 

@@ -10,13 +10,19 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from lnagent.cli.commands import CommandAction, parse_command
 from lnagent.memory.canon_extractor import merge_hot_canon
+from lnagent.memory.cold_archive import ColdArchiveExtractor, ColdProposal
 from lnagent.memory.models import (
     AdoptRecord,
     ChatMessage,
+    ColdSynopsis,
     HotCanon,
     NovelMeta,
     SceneSession,
+    SceneSynopsisEntry,
     WorldCanon,
+    extract_tail,
+    next_scene_id,
+    previous_scene_id,
 )
 from lnagent.memory.prompt import PromptContextBuilder
 from lnagent.memory.short_term import ShortTermBuffer
@@ -37,6 +43,7 @@ class JsonMemoryStoreTest(unittest.TestCase):
         self.assertTrue(self.store.project_dir.is_dir())
         self.assertTrue((self.store.project_dir / "meta.json").exists() is False)
         self.assertTrue((self.store.project_dir / "memory" / "canon.json").is_file())
+        self.assertTrue((self.store.project_dir / "memory" / "synopsis.json").is_file())
         self.assertTrue((self.store.project_dir / "session.json").is_file())
         self.assertTrue(
             (self.store.project_dir / "manuscript" / "scene_001.md").is_file()
@@ -247,6 +254,107 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertIn("暗属性魔法会侵蚀记忆", system.content)
         self.assertIn("钟楼封印", system.content)
 
+    def test_build_new_scene_includes_global_prior_cold_and_tail(self) -> None:
+        meta = NovelMeta(title="异世界学院", world_rules=[], style="轻松")
+        prior = SceneSynopsisEntry(
+            id="scene_001",
+            location="酒馆",
+            time="雨夜",
+            summary="主角抵达酒馆。",
+            key_points=["遇见神秘人"],
+        )
+        builder = PromptContextBuilder()
+        messages = builder.build(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_002"),
+            user_input="开场",
+            global_summary="全书：主角寻找失落的记忆。",
+            prior_scene_cold=prior,
+            scene_tail="……他推开了门。",
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertIn("全书梗概", system.content)
+        self.assertIn("主角寻找失落的记忆", system.content)
+        self.assertIn("上一场景归档", system.content)
+        self.assertIn("酒馆", system.content)
+        self.assertIn("前文衔接", system.content)
+        self.assertIn("他推开了门", system.content)
+        self.assertNotIn("已采纳正文（当前场景）", system.content)
+
+
+class SceneIdUtilTest(unittest.TestCase):
+    def test_next_and_previous_scene_id(self) -> None:
+        self.assertEqual(next_scene_id("scene_001"), "scene_002")
+        self.assertEqual(previous_scene_id("scene_002"), "scene_001")
+        self.assertIsNone(previous_scene_id("scene_001"))
+
+    def test_extract_tail_limits_characters(self) -> None:
+        text = "甲" * 600
+        tail = extract_tail(text, limit=500)
+        self.assertEqual(len(tail), 500)
+        self.assertTrue(text.endswith(tail))
+
+
+class SynopsisStoreTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.store = JsonMemoryStore(Path(self._tmp.name) / "demo")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_synopsis_round_trip(self) -> None:
+        self.store.ensure_project_layout()
+        synopsis = ColdSynopsis(
+            global_summary="全书梗概",
+            scenes=[
+                SceneSynopsisEntry(
+                    id="scene_001",
+                    location="酒馆",
+                    time="雨夜",
+                    summary="抵达酒馆。",
+                    key_points=["伏笔A"],
+                )
+            ],
+        )
+        self.store.save_synopsis(synopsis)
+        loaded = self.store.load_synopsis()
+        self.assertEqual(loaded.global_summary, "全书梗概")
+        self.assertEqual(loaded.scenes[0].location, "酒馆")
+
+    def test_read_scene_tail_from_manuscript(self) -> None:
+        self.store.ensure_project_layout()
+        long_text = "段。" * 300
+        self.store.append_scene_text("scene_001", long_text)
+        tail = self.store.read_scene_tail("scene_001")
+        self.assertEqual(len(tail), 500)
+
+
+class ColdArchiveExtractorTest(unittest.TestCase):
+    def test_propose_parses_json(self) -> None:
+        payload = (
+            '{"location":"钟楼","time":"午夜","summary":"封印动摇。",'
+            '"key_points":["钟声"]}'
+        )
+        extractor = ColdArchiveExtractor(_JsonColdModel(propose_content=payload))
+        proposal = extractor.propose("scene_001", "正文内容。")
+        self.assertEqual(proposal.location, "钟楼")
+        self.assertEqual(proposal.summary, "封印动摇。")
+
+    def test_rollup_global_returns_text(self) -> None:
+        extractor = ColdArchiveExtractor(_FixedResponseModel("更新后的全书梗概。"))
+        entry = SceneSynopsisEntry(
+            id="scene_001",
+            location="钟楼",
+            time="午夜",
+            summary="封印动摇。",
+        )
+        result = extractor.rollup_global("旧梗概", entry)
+        self.assertEqual(result, "更新后的全书梗概。")
+
 
 class NovelSessionTest(unittest.TestCase):
     def test_send_loads_canon_for_prompt_builder(self) -> None:
@@ -332,6 +440,103 @@ class NovelSessionTest(unittest.TestCase):
             )
             self.assertFalse(store.load_session().adopt_stack[0].accepted_canon)
 
+    def test_apply_reconcile_accepts_canon(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            patch = HotCanon(characters=[{"name": "莉亚", "abilities": ["影步"]}])
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(patch),
+            )
+            session.commit_adopt(
+                session.prepare_adopt("正文。"),
+                accepted_canon=False,
+            )
+            items = session.pending_reconcile_items()
+            self.assertEqual(len(items), 1)
+            session.apply_reconcile(items[0], accepted_canon=True)
+            self.assertEqual(store.load_canon().characters[0]["abilities"], ["影步"])
+            self.assertTrue(store.load_session().adopt_stack[0].accepted_canon)
+
+    def test_finish_scene_switch_accept_writes_synopsis_and_advances_scene(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            cold = _FakeColdExtractor(
+                ColdProposal(
+                    location="酒馆",
+                    time="雨夜",
+                    summary="提案摘要",
+                    key_points=["要点"],
+                ),
+                rollup="新的全书梗概",
+            )
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+                cold_extractor=cold,
+            )
+            session.commit_adopt(
+                session.prepare_adopt("第一段。"),
+                accepted_canon=True,
+            )
+            proposal = session.prepare_cold_proposal()
+            new_id = session.finish_scene_switch(
+                proposal,
+                cold_accepted=True,
+                summary="作者确认的摘要",
+            )
+            self.assertEqual(new_id, "scene_002")
+            synopsis = store.load_synopsis()
+            self.assertEqual(len(synopsis.scenes), 1)
+            self.assertEqual(synopsis.scenes[0].summary, "作者确认的摘要")
+            self.assertEqual(synopsis.scenes[0].location, "酒馆")
+            self.assertEqual(synopsis.global_summary, "新的全书梗概")
+            loaded = store.load_session()
+            self.assertEqual(loaded.scene_id, "scene_002")
+            self.assertEqual(loaded.adopted_prose, "")
+            self.assertEqual(loaded.adopt_stack, [])
+
+    def test_finish_scene_switch_reject_skips_synopsis_but_advances_scene(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+                cold_extractor=_FakeColdExtractor(
+                    ColdProposal(
+                        location="酒馆",
+                        time="雨夜",
+                        summary="提案",
+                        key_points=[],
+                    )
+                ),
+            )
+            session.commit_adopt(
+                session.prepare_adopt("第一段。"),
+                accepted_canon=True,
+            )
+            proposal = session.prepare_cold_proposal()
+            new_id = session.finish_scene_switch(
+                proposal,
+                cold_accepted=False,
+                summary="",
+            )
+            self.assertEqual(new_id, "scene_002")
+            self.assertEqual(store.load_synopsis().scenes, [])
+            self.assertEqual(store.load_session().scene_id, "scene_002")
+
 
 class HotCanonMergeTest(unittest.TestCase):
     def test_merge_updates_characters_and_deduplicates_arrays(self) -> None:
@@ -390,6 +595,8 @@ class CommandParserTest(unittest.TestCase):
         self.assertEqual(parse_command("/canon").action, CommandAction.CANON)
         self.assertEqual(parse_command("/h").action, CommandAction.HELP)
         self.assertEqual(parse_command("/help").action, CommandAction.HELP)
+        self.assertEqual(parse_command("/sc").action, CommandAction.SCENE)
+        self.assertEqual(parse_command("/scene").action, CommandAction.SCENE)
 
     def test_parse_plain_text_as_message(self) -> None:
         parsed = parse_command("继续写主角进酒馆")
@@ -419,9 +626,63 @@ class _CapturingPromptBuilder:
         canon: HotCanon,
         buffer: ShortTermBuffer,
         user_input: str,
+        **kwargs: object,
     ) -> list[HumanMessage]:
         self.seen_canon = canon
         return [HumanMessage(content=user_input)]
+
+
+class _FixedResponseModel:
+    def __init__(self, content: str) -> None:
+        self._content = content
+
+    def invoke(self, messages: list[object]) -> object:
+        return _FakeResponse(content=self._content)
+
+
+class _JsonColdModel:
+    def __init__(
+        self,
+        *,
+        propose_content: str = "{}",
+        rollup_content: str = "梗概",
+    ) -> None:
+        self._propose_content = propose_content
+        self._rollup_content = rollup_content
+        self._call = 0
+
+    def invoke(self, messages: list[object]) -> object:
+        self._call += 1
+        if self._call == 1:
+            return _FakeResponse(content=self._propose_content)
+        return _FakeResponse(content=self._rollup_content)
+
+
+class _FakeColdExtractor:
+    def __init__(
+        self,
+        proposal: ColdProposal,
+        *,
+        rollup: str = "全书梗概",
+    ) -> None:
+        self._proposal = proposal
+        self._rollup = rollup
+
+    def propose(
+        self,
+        scene_id: str,
+        adopted_text: str,
+        *,
+        meta: NovelMeta | None = None,
+    ) -> ColdProposal:
+        return self._proposal
+
+    def rollup_global(
+        self,
+        old_global: str,
+        scene_entry: SceneSynopsisEntry,
+    ) -> str:
+        return self._rollup
 
 
 class _FakeCanonExtractor:
