@@ -3,10 +3,12 @@
 from lnagent.chat import ChatClient, LLMChatClient
 from lnagent.config import Settings
 from lnagent.llm import create_chat_model
+from lnagent.session import NovelSession
 
 __all__ = [
     "ChatClient",
     "LLMChatClient",
+    "NovelSession",
     "Settings",
     "create_chat_model",
 ]

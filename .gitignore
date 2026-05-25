@@ -1,0 +1,60 @@
+# --- Python 编译与字节码 ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Cython / 扩展构建中间产物
+*.pyd
+
+# --- 打包与分发 ---
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+wheels/
+share/python-wheels/
+
+# --- 虚拟环境（README 使用 .venv）---
+.venv/
+venv/
+env/
+ENV/
+
+# --- 测试与覆盖率 ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# --- 类型检查 / 静态分析缓存 ---
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.ruff_cache/
+
+# --- 本地配置与密钥（勿提交）---
+.env
+.env.*
+!.env.example
+
+# --- 运行时项目数据（小说工作区）---
+projects/
+
+# --- 编辑器与系统 ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
