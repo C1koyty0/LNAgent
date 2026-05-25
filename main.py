@@ -4,6 +4,14 @@ import argparse
 import sys
 
 from lnagent import Settings, create_chat_model
+from lnagent.cli.adopt import read_adopt_text, read_yes_no
+from lnagent.cli.commands import (
+    HELP_TEXT,
+    CommandAction,
+    format_canon_summary,
+    parse_command,
+)
+from lnagent.memory.canon_extractor import CanonPatchParseError
 from lnagent.memory.store import JsonMemoryStore
 from lnagent.project import open_or_create_project
 from lnagent.session import NovelSession
@@ -56,8 +64,28 @@ def run_cli(argv: list[str] | None = None) -> None:
             break
 
         try:
-            reply = session.send(user_input)
-            print(f"助手: {reply}\n")
+            command = parse_command(user_input)
+            if command.action == CommandAction.ADOPT:
+                if session.last_candidate is None:
+                    print("没有可采纳候选。请先输入创作指令生成候选。\n")
+                    continue
+                adopted_text = read_adopt_text(session.last_candidate)
+                proposal = session.prepare_adopt(adopted_text)
+                print(f"{proposal.diff}\n")
+                accepted = read_yes_no("是否写入 Hot Canon? (y/n): ")
+                session.commit_adopt(proposal, accepted_canon=accepted)
+                print("已采纳正文。\n")
+            elif command.action == CommandAction.CANON:
+                print(format_canon_summary(store.load_canon()))
+                print()
+            elif command.action == CommandAction.HELP:
+                print(HELP_TEXT)
+                print()
+            else:
+                reply = session.send(command.text)
+                print(f"助手: {reply}\n")
+        except CanonPatchParseError as exc:
+            print(f"Hot Canon 抽取失败: {exc}。请重试 /a。\n")
         except Exception as exc:
             print(f"错误: {exc}\n")
 

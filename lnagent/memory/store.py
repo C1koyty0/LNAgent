@@ -11,6 +11,7 @@ from lnagent.memory.models import (
     NovelMeta,
     SceneSession,
 )
+from lnagent.memory.short_term import append_prose
 
 
 class JsonMemoryStore:
@@ -66,6 +67,12 @@ class JsonMemoryStore:
 
     def save_session(self, session: SceneSession) -> None:
         self._write_json(self._session_path, session.to_dict())
+
+    def append_scene_text(self, scene_id: str, text: str) -> None:
+        scene_path = self._project_dir / "manuscript" / f"{scene_id}.md"
+        existing = scene_path.read_text(encoding="utf-8") if scene_path.is_file() else ""
+        scene_path.parent.mkdir(parents=True, exist_ok=True)
+        scene_path.write_text(append_prose(existing, text), encoding="utf-8")
 
     @staticmethod
     def _read_json(path: Path) -> dict:

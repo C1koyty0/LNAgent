@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from lnagent.memory.models import ChatMessage, SceneSession
+from lnagent.memory.models import AdoptRecord, ChatMessage, SceneSession
 
 
 class ShortTermBuffer:
@@ -13,10 +13,12 @@ class ShortTermBuffer:
         scene_id: str,
         messages: list[ChatMessage] | None = None,
         adopted_prose: str = "",
+        adopt_stack: list[AdoptRecord] | None = None,
     ) -> None:
         self._scene_id = scene_id
         self._messages: list[ChatMessage] = list(messages or [])
         self._adopted_prose = adopted_prose
+        self._adopt_stack: list[AdoptRecord] = list(adopt_stack or [])
         self._last_candidate: str | None = None
 
     @classmethod
@@ -38,6 +40,7 @@ class ShortTermBuffer:
             scene_id=session.scene_id,
             messages=messages,
             adopted_prose=session.adopted_prose,
+            adopt_stack=session.adopt_stack,
         )
 
     @property
@@ -51,6 +54,10 @@ class ShortTermBuffer:
     @property
     def messages(self) -> list[ChatMessage]:
         return list(self._messages)
+
+    @property
+    def adopt_stack(self) -> list[AdoptRecord]:
+        return list(self._adopt_stack)
 
     @property
     def last_candidate(self) -> str | None:
@@ -68,9 +75,25 @@ class ShortTermBuffer:
     def clear_candidate(self) -> None:
         self._last_candidate = None
 
+    def append_adopted_prose(self, text: str) -> None:
+        self._adopted_prose = append_prose(self._adopted_prose, text)
+
+    def record_adopt(self, record: AdoptRecord) -> None:
+        self._adopt_stack.append(record)
+
     def to_session(self) -> SceneSession:
         return SceneSession(
             scene_id=self._scene_id,
             messages=list(self._messages),
             adopted_prose=self._adopted_prose,
+            adopt_stack=list(self._adopt_stack),
         )
+
+
+def append_prose(existing: str, text: str) -> str:
+    normalized = text.strip()
+    if not normalized:
+        return existing
+    if existing.strip():
+        return existing.rstrip() + "\n\n" + normalized + "\n"
+    return normalized + "\n"

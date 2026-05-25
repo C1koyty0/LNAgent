@@ -82,6 +82,33 @@ class HotCanon:
         return cls()
 
 
+@dataclass
+class AdoptRecord:
+    text: str
+    canon_before: dict[str, Any]
+    canon_patch: dict[str, Any]
+    accepted_canon: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "text": self.text,
+            "canon_before": self.canon_before,
+            "canon_patch": self.canon_patch,
+            "accepted_canon": self.accepted_canon,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AdoptRecord:
+        canon_before = data.get("canon_before", {})
+        canon_patch = data.get("canon_patch", {})
+        return cls(
+            text=str(data.get("text", "")),
+            canon_before=canon_before if isinstance(canon_before, dict) else {},
+            canon_patch=canon_patch if isinstance(canon_patch, dict) else {},
+            accepted_canon=bool(data.get("accepted_canon", False)),
+        )
+
+
 DEFAULT_SCENE_ID = "scene_001"
 
 
@@ -90,12 +117,14 @@ class SceneSession:
     scene_id: str = DEFAULT_SCENE_ID
     messages: list[ChatMessage] = field(default_factory=list)
     adopted_prose: str = ""
+    adopt_stack: list[AdoptRecord] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "scene_id": self.scene_id,
             "messages": [m.to_dict() for m in self.messages],
             "adopted_prose": self.adopted_prose,
+            "adopt_stack": [r.to_dict() for r in self.adopt_stack],
         }
 
     @classmethod
@@ -104,10 +133,15 @@ class SceneSession:
         messages = [
             ChatMessage.from_dict(m) for m in raw_messages if isinstance(m, dict)
         ]
+        raw_adopt_stack = data.get("adopt_stack", [])
+        adopt_stack = [
+            AdoptRecord.from_dict(r) for r in raw_adopt_stack if isinstance(r, dict)
+        ]
         return cls(
             scene_id=str(data.get("scene_id", DEFAULT_SCENE_ID)),
             messages=messages,
             adopted_prose=str(data.get("adopted_prose", "")),
+            adopt_stack=adopt_stack,
         )
 
     @classmethod
