@@ -35,6 +35,26 @@ JSON schema:
 }
 只包含正文中明确出现或强推出的变化；没有变化则输出空结构。不要输出解释、Markdown 或代码块。"""
 
+_FIX_SYSTEM_PROMPT = """\
+你是轻小说 Hot Canon 纠错器。
+根据作者的纠错意图修正当前 Hot Canon，且只输出 JSON 对象。
+JSON schema:
+{
+  "characters": [
+    {
+      "name": "角色名",
+      "abilities": ["能力"],
+      "status": "当前状态",
+      "relationships": {"其他角色": "关系"},
+      "inventory": ["持有物"],
+      "location": "当前位置"
+    }
+  ],
+  "world": {"rules": ["世界规则"]},
+  "plot_threads": [{"id": "可选稳定ID", "status": "open|advanced|closed", "note": "伏笔说明"}]
+}
+只输出为落实纠错意图所需的变更；没有变更则输出空结构。不要输出解释、Markdown 或代码块。"""
+
 
 class CanonExtractor:
     def __init__(self, model: Any) -> None:
@@ -56,6 +76,30 @@ class CanonExtractor:
         content = response.content
         text = content if isinstance(content, str) else str(content)
         return HotCanon.from_dict(_parse_json_object(text))
+
+    def extract_fix_patch(self, correction_intent: str, canon: HotCanon) -> HotCanon:
+        messages = [
+            SystemMessage(content=_FIX_SYSTEM_PROMPT),
+            HumanMessage(
+                content=(
+                    "当前 Hot Canon:\n"
+                    f"{json.dumps(canon.to_dict(), ensure_ascii=False, indent=2)}\n\n"
+                    "作者纠错意图:\n"
+                    f"{correction_intent}"
+                )
+            ),
+        ]
+        response = self._model.invoke(messages)
+        content = response.content
+        text = content if isinstance(content, str) else str(content)
+        return HotCanon.from_dict(_parse_json_object(text))
+
+
+def is_empty_canon_patch(patch: HotCanon) -> bool:
+    data = patch.to_dict()
+    world = data.get("world", {})
+    rules = world.get("rules", []) if isinstance(world, dict) else []
+    return not data.get("characters") and not rules and not data.get("plot_threads")
 
 
 def merge_hot_canon(base: HotCanon, patch: HotCanon) -> HotCanon:

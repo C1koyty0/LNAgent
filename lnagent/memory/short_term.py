@@ -81,6 +81,13 @@ class ShortTermBuffer:
     def record_adopt(self, record: AdoptRecord) -> None:
         self._adopt_stack.append(record)
 
+    def pop_last_adopt(self) -> AdoptRecord:
+        if not self._adopt_stack:
+            raise ValueError("没有可撤销的采纳")
+        record = self._adopt_stack.pop()
+        self._adopted_prose = build_prose_from_records(self._adopt_stack)
+        return record
+
     def mark_adopt_canon_accepted(self, index: int, *, accepted: bool) -> None:
         record = self._adopt_stack[index]
         self._adopt_stack[index] = AdoptRecord(
@@ -113,3 +120,10 @@ def append_prose(existing: str, text: str) -> str:
     if existing.strip():
         return existing.rstrip() + "\n\n" + normalized + "\n"
     return normalized + "\n"
+
+
+def build_prose_from_records(records: list[AdoptRecord]) -> str:
+    prose = ""
+    for record in records:
+        prose = append_prose(prose, record.text)
+    return prose

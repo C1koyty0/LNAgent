@@ -25,12 +25,14 @@ from lnagent.memory.models import (
     previous_scene_id,
 )
 from lnagent.memory.prompt import PromptContextBuilder
-from lnagent.memory.short_term import ShortTermBuffer
+from lnagent.memory.short_term import ShortTermBuffer, build_prose_from_records
 from lnagent.memory.store import JsonMemoryStore
 
 
 class CanonPatchExtractor(Protocol):
     def extract_patch(self, adopted_text: str, canon: HotCanon) -> HotCanon: ...
+
+    def extract_fix_patch(self, correction_intent: str, canon: HotCanon) -> HotCanon: ...
 
 
 class ColdArchiveGateway(Protocol):
@@ -156,6 +158,33 @@ class NovelSession:
             )
         )
         self._buffer.clear_candidate()
+        self._persist_session()
+
+    def undo_last_adopt(self) -> AdoptRecord:
+        record = self._buffer.pop_last_adopt()
+        rebuilt = build_prose_from_records(self._buffer.adopt_stack)
+        self._store.rewrite_scene_manuscript(self._buffer.scene_id, rebuilt)
+        self._store.save_canon(HotCanon.from_dict(record.canon_before))
+        self._persist_session()
+        return record
+
+    def prepare_fix(self, intent: str) -> AdoptProposal:
+        normalized = intent.strip()
+        if not normalized:
+            raise ValueError("纠错意图不能为空")
+        canon_before = self._store.load_canon()
+        canon_patch = self._canon_extractor.extract_fix_patch(normalized, canon_before)
+        canon_after = merge_hot_canon(canon_before, canon_patch)
+        return AdoptProposal(
+            text=normalized,
+            canon_before=canon_before,
+            canon_patch=canon_patch,
+            canon_after=canon_after,
+            diff=format_canon_diff(canon_before, canon_patch, canon_after),
+        )
+
+    def commit_fix(self, proposal: AdoptProposal) -> None:
+        self._store.save_canon(proposal.canon_after)
         self._persist_session()
 
     def pending_reconcile_items(self) -> list[ReconcileItem]:

@@ -45,7 +45,7 @@
 | ID | 状态 | 问题 | 背景 / 选项 |
 |----|------|------|-------------|
 | **X1** | 🟢 | **多行文本输入如何实现** | `/a` 与 **Cold review** 均：多行 + 单独一行 `EOF` 结束。 |
-| **X2** | 🔴 | **`/fix` 的参数输入方式** | 纠错意图是 `/f` 后同一行，还是进入多轮对话再抽取？ |
+| **X2** | 🟢 | **`/fix` 的参数输入方式** | `/f` 后**多行 + 单独一行 `EOF` 结束**（同 `/a`、Cold review）；纠错意图不可为空。 |
 | **X3** | 🟢 | **Cold review 空输入语义** | 与 `/a` 一致：仅输入 `EOF`（无 summary 正文）= 原样采纳提案 summary。 |
 | **X4** | 🟡 | **命令大小写与前缀** | 是否仅支持 `/a` 小写？`/` 是否必须？ |
 
@@ -84,10 +84,24 @@
 
 ---
 
-## 7. 修订记录
+## 7. Phase 4 已决议（2026-05-26，详见 memory-mvp-plan）
+
+| 议题 | 决议 |
+|------|------|
+| `/f` 输入（X2） | 多行 + `EOF`（同 `/a`）；纠错意图不可为空 |
+| `/f` LLM 输出 | 与 adopt **同 JSON patch schema + merge 规则**；prompt 按纠错意图修正 Hot |
+| `/f` 副作用 | 仅改 Hot Canon；**不改正文、不写 `adopt_stack`** |
+| `/u` 回滚范围（E2） | 栈顶 pop；`adopted_prose` + manuscript + Hot（`canon_before`）；**不动 `messages`** |
+| `/u` 可撤对象 | `accepted_canon=false` 的 adopt 也可撤；允许多次连续 `/u` |
+| `/u` 场景范围 | 仅当前场景（`/sc` 后栈已清空） |
+
+---
+
+## 8. 修订记录
 
 | 日期 | 说明 |
 |------|------|
 | 2026-05-25 | 初稿：自 memory-architecture §8.2 拆出并扩充 |
 | 2026-05-25 | 补充 Phase 2 默认：`/a` 使用 EOF 多行输入；Hot patch 覆盖 `characters`、`world.rules[]`、`plot_threads[]` |
 | 2026-05-25 | Phase 3：S5/S6/L6 Cold、X1/X3、E3 等标 🟢；新增 §6 决议摘要 |
+| 2026-05-26 | Phase 4：X2 标 🟢；新增 §7 决议摘要（`/f` 输入与 patch、`/u` 边界） |

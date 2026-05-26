@@ -284,11 +284,18 @@ Hot 与 Cold 提案冲突时，**以 Hot 为准**；作者 editing Cold summary 
 
 **`/fix`（`/f`）**——设定纠错，**只改 Hot Canon，不动正文**：
 
-1. 作者输入纠错意图（如「主角并未获得暗属性能力」）。
-2. 系统生成 Hot Canon **变更 diff**。
-3. 作者 **y / n** 确认写入。
+1. 作者输入纠错意图（如「主角并未获得暗属性能力」）：**多行 + 单独一行 `EOF` 结束**（同 `/a`、Cold review）；纠错意图不可为空。
+2. LLM 按纠错意图生成 Hot Canon **JSON patch**（与 adopt **同 schema**：`characters`、`world.rules[]`、`plot_threads[]`；**同 merge 规则**）。
+3. 展示变更 diff；作者 **y / n** 确认写入。空 patch 提示「无变更」；JSON 解析失败提示重试。**不写入 `adopt_stack`**。
 
 口头发现设定错误时走 **`/fix`**，而非 `/undo`（除非要连该段正文一起撤销）。
+
+**`/undo` 补充约定（Phase 4）**：
+
+- 每次撤销 **栈顶** 一条 adopt；栈非空时可**连续** `/u`。
+- **`accepted_canon=false` 的 adopt 也可撤**（正文已写入即视为成功 adopt；Hot 恢复为该条 `canon_before`）。
+- **不修改** `messages` 对话历史；仅回滚 `adopted_prose`、`manuscript` 与 Hot Canon。
+- 仅**当前场景**有效；`/scene` 切换后 `adopt_stack` 已清空。
 
 ---
 
@@ -369,7 +376,10 @@ projects/<novel_id>/
 | S1 | Hot Canon 字段 | 含 **inventory**、**location** |
 | P1 | 项目启动 | `python main.py --project <novel_id>` |
 | E1 | 口头纠错 | 走 **`/fix`（`/f`）** 改 Hot Canon |
-| E2 | `/undo` 范围 | 正文 + Hot **一并回滚** |
+| E2 | `/undo` 范围 | 正文 + Hot **一并回滚**；**不动** `messages` |
+| E4 | `/undo` 可撤对象 | 栈顶 pop；`accepted_canon=false` 也可撤；可连续 `/u`；仅当前场景 |
+| F1 | `/fix` 输入 | 多行 + `EOF`（同 `/a`）；纠错意图不可为空 |
+| F2 | `/fix` patch | 与 adopt **同 JSON patch schema + merge**；不改正文、不写 `adopt_stack` |
 | L5 | 纯讨论轮次 | **允许**；不单独设模式，是否 adopt 仍靠显式 `/a` |
 | P2 | 断点恢复 | **不恢复**未 adopt 候选；退出即丢弃 |
 | S5 | 全书梗概 rollup | **每次 Cold accept 后** LLM 自动更新 `synopsis.global` |
@@ -411,4 +421,5 @@ projects/<novel_id>/
 | 2026-05-25 | 第三轮：E1 `/fix`、E2 undo 连带 Hot、L5 纯讨论、P2 不恢复候选 |
 | 2026-05-25 | 待讨论项拆至 open-questions.md；新增 memory-mvp-plan.md |
 | 2026-05-25 | 补充 Phase 2：`/adopt` EOF 输入、Hot patch schema、merge 规则、拒绝策略与 adopt 栈 |
+| 2026-05-26 | Phase 4：`/f` 多行+EOF、同 schema patch；`/u` 栈顶回滚、不动 messages、仅当前场景 |
 | 2026-05-25 | Phase 3：`synopsis.json` schema、global rollup、Prompt 注入、逐条 reconcile、`/r` 仍切场景 |

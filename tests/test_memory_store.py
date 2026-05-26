@@ -9,7 +9,7 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from lnagent.cli.commands import CommandAction, parse_command
-from lnagent.memory.canon_extractor import merge_hot_canon
+from lnagent.memory.canon_extractor import is_empty_canon_patch, merge_hot_canon
 from lnagent.memory.cold_archive import ColdArchiveExtractor, ColdProposal
 from lnagent.memory.models import (
     AdoptRecord,
@@ -25,7 +25,7 @@ from lnagent.memory.models import (
     previous_scene_id,
 )
 from lnagent.memory.prompt import PromptContextBuilder
-from lnagent.memory.short_term import ShortTermBuffer
+from lnagent.memory.short_term import ShortTermBuffer, build_prose_from_records
 from lnagent.memory.store import JsonMemoryStore
 from lnagent.session import NovelSession
 
@@ -102,6 +102,14 @@ class JsonMemoryStoreTest(unittest.TestCase):
 
         manuscript = self.store.project_dir / "manuscript" / "scene_001.md"
         self.assertEqual(manuscript.read_text(encoding="utf-8"), "第一段。\n\n第二段。\n")
+
+    def test_rewrite_scene_manuscript_overwrites_content(self) -> None:
+        self.store.ensure_project_layout()
+        self.store.append_scene_text("scene_001", "旧正文。")
+        self.store.rewrite_scene_manuscript("scene_001", "新正文。\n")
+
+        manuscript = self.store.project_dir / "manuscript" / "scene_001.md"
+        self.assertEqual(manuscript.read_text(encoding="utf-8"), "新正文。\n")
 
 
 class ShortTermBufferTest(unittest.TestCase):
@@ -181,6 +189,51 @@ class ShortTermBufferTest(unittest.TestCase):
         self.assertEqual(len(buffer.messages), 3)
         self.assertEqual(buffer.messages[-1].role, "user")
         self.assertEqual(buffer.messages[-1].content, "换一种写法")
+
+    def test_build_prose_from_records_joins_adopts(self) -> None:
+        records = [
+            AdoptRecord(
+                text="第一段。",
+                canon_before={},
+                canon_patch={},
+                accepted_canon=True,
+            ),
+            AdoptRecord(
+                text="第二段。",
+                canon_before={},
+                canon_patch={},
+                accepted_canon=True,
+            ),
+        ]
+
+        prose = build_prose_from_records(records)
+
+        self.assertEqual(prose, "第一段。\n\n第二段。\n")
+
+    def test_pop_last_adopt_rebuilds_adopted_prose(self) -> None:
+        buffer = ShortTermBuffer(scene_id="scene_001")
+        for text in ("第一段。", "第二段。"):
+            buffer.append_adopted_prose(text)
+            buffer.record_adopt(
+                AdoptRecord(
+                    text=text,
+                    canon_before={},
+                    canon_patch={},
+                    accepted_canon=True,
+                )
+            )
+
+        popped = buffer.pop_last_adopt()
+
+        self.assertEqual(popped.text, "第二段。")
+        self.assertEqual(buffer.adopted_prose, "第一段。\n")
+        self.assertEqual(len(buffer.adopt_stack), 1)
+
+    def test_pop_last_adopt_empty_stack_raises(self) -> None:
+        buffer = ShortTermBuffer(scene_id="scene_001")
+
+        with self.assertRaisesRegex(ValueError, "没有可撤销的采纳"):
+            buffer.pop_last_adopt()
 
 
 class PromptContextBuilderTest(unittest.TestCase):
@@ -537,6 +590,200 @@ class NovelSessionTest(unittest.TestCase):
             self.assertEqual(store.load_synopsis().scenes, [])
             self.assertEqual(store.load_session().scene_id, "scene_002")
 
+    def test_undo_single_adopt_rolls_back_prose_and_canon(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            patch = HotCanon(characters=[{"name": "莉亚", "abilities": ["影步"]}])
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(patch),
+            )
+            session.send("写开篇")
+            proposal = session.prepare_adopt("莉亚学会了影步。")
+            session.commit_adopt(proposal, accepted_canon=True)
+
+            session.undo_last_adopt()
+
+            self.assertEqual(store.load_canon(), HotCanon.empty())
+            self.assertEqual(
+                (store.project_dir / "manuscript" / "scene_001.md").read_text(
+                    encoding="utf-8"
+                ),
+                "",
+            )
+            loaded = store.load_session()
+            self.assertEqual(loaded.adopted_prose, "")
+            self.assertEqual(loaded.adopt_stack, [])
+
+    def test_undo_twice_removes_both_adopts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+            )
+            session.commit_adopt(
+                session.prepare_adopt("第一段。"),
+                accepted_canon=False,
+            )
+            session.commit_adopt(
+                session.prepare_adopt("第二段。"),
+                accepted_canon=False,
+            )
+
+            session.undo_last_adopt()
+            session.undo_last_adopt()
+
+            self.assertEqual(
+                (store.project_dir / "manuscript" / "scene_001.md").read_text(
+                    encoding="utf-8"
+                ),
+                "",
+            )
+            self.assertEqual(store.load_session().adopt_stack, [])
+
+    def test_undo_rejected_canon_adopt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            patch = HotCanon(characters=[{"name": "莉亚", "abilities": ["影步"]}])
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(patch),
+            )
+            session.commit_adopt(
+                session.prepare_adopt("正文。"),
+                accepted_canon=False,
+            )
+
+            session.undo_last_adopt()
+
+            self.assertEqual(store.load_canon(), HotCanon.empty())
+            self.assertEqual(
+                (store.project_dir / "manuscript" / "scene_001.md").read_text(
+                    encoding="utf-8"
+                ),
+                "",
+            )
+
+    def test_undo_empty_stack_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+            )
+
+            with self.assertRaisesRegex(ValueError, "没有可撤销的采纳"):
+                session.undo_last_adopt()
+
+    def test_undo_does_not_touch_messages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+            )
+            session.send("写开篇")
+            message_count = len(store.load_session().messages)
+            session.commit_adopt(
+                session.prepare_adopt("正文。"),
+                accepted_canon=False,
+            )
+
+            session.undo_last_adopt()
+
+            self.assertEqual(len(store.load_session().messages), message_count)
+
+    def test_prepare_fix_empty_patch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(
+                    HotCanon.empty(),
+                    fix_patch=HotCanon.empty(),
+                ),
+            )
+
+            proposal = session.prepare_fix("这只是一条说明。")
+
+            self.assertTrue(is_empty_canon_patch(proposal.canon_patch))
+
+    def test_commit_fix_updates_canon_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            fix_patch = HotCanon(characters=[{"name": "莉亚", "abilities": []}])
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(
+                    HotCanon.empty(),
+                    fix_patch=fix_patch,
+                ),
+            )
+            session.commit_adopt(
+                session.prepare_adopt("正文。"),
+                accepted_canon=False,
+            )
+            manuscript_before = (
+                store.project_dir / "manuscript" / "scene_001.md"
+            ).read_text(encoding="utf-8")
+            stack_before = len(store.load_session().adopt_stack)
+
+            proposal = session.prepare_fix("主角并未获得暗属性能力。")
+            session.commit_fix(proposal)
+
+            self.assertEqual(store.load_canon().characters[0]["abilities"], [])
+            self.assertEqual(
+                (store.project_dir / "manuscript" / "scene_001.md").read_text(
+                    encoding="utf-8"
+                ),
+                manuscript_before,
+            )
+            self.assertEqual(len(store.load_session().adopt_stack), stack_before)
+
+    def test_prepare_fix_empty_intent_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+            )
+
+            with self.assertRaisesRegex(ValueError, "纠错意图不能为空"):
+                session.prepare_fix("   ")
+
 
 class HotCanonMergeTest(unittest.TestCase):
     def test_merge_updates_characters_and_deduplicates_arrays(self) -> None:
@@ -597,6 +844,10 @@ class CommandParserTest(unittest.TestCase):
         self.assertEqual(parse_command("/help").action, CommandAction.HELP)
         self.assertEqual(parse_command("/sc").action, CommandAction.SCENE)
         self.assertEqual(parse_command("/scene").action, CommandAction.SCENE)
+        self.assertEqual(parse_command("/u").action, CommandAction.UNDO)
+        self.assertEqual(parse_command("/undo").action, CommandAction.UNDO)
+        self.assertEqual(parse_command("/f").action, CommandAction.FIX)
+        self.assertEqual(parse_command("/fix").action, CommandAction.FIX)
 
     def test_parse_plain_text_as_message(self) -> None:
         parsed = parse_command("继续写主角进酒馆")
@@ -686,11 +937,15 @@ class _FakeColdExtractor:
 
 
 class _FakeCanonExtractor:
-    def __init__(self, patch: HotCanon) -> None:
+    def __init__(self, patch: HotCanon, *, fix_patch: HotCanon | None = None) -> None:
         self.patch = patch
+        self.fix_patch = patch if fix_patch is None else fix_patch
 
     def extract_patch(self, adopted_text: str, canon: HotCanon) -> HotCanon:
         return self.patch
+
+    def extract_fix_patch(self, correction_intent: str, canon: HotCanon) -> HotCanon:
+        return self.fix_patch
 
 
 if __name__ == "__main__":

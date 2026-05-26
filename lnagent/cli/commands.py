@@ -13,6 +13,8 @@ class CommandAction(str, Enum):
     ADOPT = "adopt"
     CANON = "canon"
     SCENE = "scene"
+    UNDO = "undo"
+    FIX = "fix"
     HELP = "help"
     MESSAGE = "message"
 
@@ -28,6 +30,8 @@ HELP_TEXT = """\
   /a, /adopt    采纳上一轮候选正文，并确认 Hot Canon 变更
   /c, /canon    查看当前 Hot Canon
   /sc, /scene   结束当前场景（须至少一次 /a）；Cold 摘要 review
+  /u, /undo     撤销最后一次 adopt（正文 + Hot 一并回滚）
+  /f, /fix      设定纠错（多行 + EOF 输入意图），仅改 Hot Canon
   /h, /help     显示帮助
   quit/exit/q   退出"""
 
@@ -40,6 +44,10 @@ _COMMAND_ALIASES = {
     "/help": CommandAction.HELP,
     "/sc": CommandAction.SCENE,
     "/scene": CommandAction.SCENE,
+    "/u": CommandAction.UNDO,
+    "/undo": CommandAction.UNDO,
+    "/f": CommandAction.FIX,
+    "/fix": CommandAction.FIX,
 }
 
 

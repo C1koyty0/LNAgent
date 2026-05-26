@@ -89,7 +89,7 @@ python main.py --project my_novel
 | `/adopt` | `/a` | 编辑并采纳上一轮输出；Hot Canon diff **y/n** 确认 |
 | `/scene` | `/sc` | 结束场景（须至少一次 `/a`）；Cold 摘要全文 review |
 | `/undo` | `/u` | 撤销最后一次 adopt；正文 + Hot **一并回滚** |
-| `/fix` | `/f` | 设定纠错，仅改 Hot Canon（diff **y/n**） |
+| `/fix` | `/f` | 设定纠错（多行 + `EOF` 输入意图），仅改 Hot Canon（diff **y/n**） |
 | `/canon` | `/c` | 查看 Hot Canon 摘要 |
 | `/help` | `/h` | 命令帮助 |
 | `/reject` | `/r` | Cold review 时丢弃提案 |

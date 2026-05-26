@@ -82,6 +82,11 @@ class JsonMemoryStore:
         scene_path.parent.mkdir(parents=True, exist_ok=True)
         scene_path.write_text(append_prose(existing, text), encoding="utf-8")
 
+    def rewrite_scene_manuscript(self, scene_id: str, content: str) -> None:
+        scene_path = self._scene_manuscript_path(scene_id)
+        scene_path.parent.mkdir(parents=True, exist_ok=True)
+        scene_path.write_text(content, encoding="utf-8")
+
     def load_synopsis(self) -> ColdSynopsis:
         if not self._synopsis_path.is_file():
             return ColdSynopsis.empty()
