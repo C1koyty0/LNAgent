@@ -16,10 +16,12 @@ from lnagent.memory.cold_archive import (
     ColdArchiveExtractor,
     ColdProposal,
 )
+from lnagent.memory.context_budget import BudgetReport
 from lnagent.memory.models import (
     AdoptRecord,
     HotCanon,
     NovelMeta,
+    ProjectConfig,
     SceneSynopsisEntry,
     next_scene_id,
     previous_scene_id,
@@ -80,6 +82,7 @@ class NovelSession:
         self._store = store
         self._model = model
         self._meta = meta
+        self._config = store.load_config()
         self._prompt_builder = prompt_builder or PromptContextBuilder()
         self._canon_extractor = canon_extractor or CanonExtractor(model)
         self._cold_extractor = cold_extractor or ColdArchiveExtractor(model)
@@ -87,11 +90,17 @@ class NovelSession:
             store.load_session(),
             drop_pending_candidate=True,
         )
+        self._turns_since_last_adopt = 0
+        self._last_budget_report = BudgetReport()
         self._scene_tail, self._prior_scene_cold = self._load_scene_prompt_context()
 
     @property
     def meta(self) -> NovelMeta:
         return self._meta
+
+    @property
+    def config(self) -> ProjectConfig:
+        return self._config
 
     @property
     def scene_id(self) -> str:
@@ -104,6 +113,14 @@ class NovelSession:
     @property
     def adopt_stack(self) -> list[AdoptRecord]:
         return self._buffer.adopt_stack
+
+    @property
+    def turns_since_last_adopt(self) -> int:
+        return self._turns_since_last_adopt
+
+    @property
+    def last_budget_report(self) -> BudgetReport:
+        return self._last_budget_report
 
     def can_switch_scene(self) -> bool:
         return len(self._buffer.adopt_stack) > 0
@@ -119,6 +136,12 @@ class NovelSession:
             global_summary=synopsis.global_summary,
             prior_scene_cold=self._prior_scene_cold,
             scene_tail=self._scene_tail,
+            context_config=self._config.context,
+        )
+        self._last_budget_report = getattr(
+            self._prompt_builder,
+            "last_budget_report",
+            BudgetReport(),
         )
         response = self._model.invoke(messages)
         content = response.content
@@ -127,6 +150,7 @@ class NovelSession:
         self._buffer.append_user(user_input)
         self._buffer.append_assistant(reply)
         self._buffer.set_candidate(reply)
+        self._turns_since_last_adopt += 1
         self._persist_session()
         return reply
 
@@ -158,6 +182,7 @@ class NovelSession:
             )
         )
         self._buffer.clear_candidate()
+        self._turns_since_last_adopt = 0
         self._persist_session()
 
     def undo_last_adopt(self) -> AdoptRecord:
@@ -223,7 +248,10 @@ class NovelSession:
         summary: str,
     ) -> str:
         closing_scene_id = self._buffer.scene_id
-        tail = self._store.read_scene_tail(closing_scene_id)
+        tail = self._store.read_scene_tail(
+            closing_scene_id,
+            limit=self._config.context.scene_tail_limit,
+        )
         prior_cold: SceneSynopsisEntry | None = None
 
         if cold_accepted:
@@ -240,6 +268,7 @@ class NovelSession:
         new_scene_id = next_scene_id(closing_scene_id)
         self._store.ensure_scene_manuscript(new_scene_id)
         self._buffer.reset_for_new_scene(new_scene_id)
+        self._turns_since_last_adopt = 0
         self._scene_tail = tail
         self._prior_scene_cold = prior_cold
         self._persist_session()
@@ -248,12 +277,22 @@ class NovelSession:
     def save(self) -> None:
         self._persist_session()
 
+    def update_config(self, config: ProjectConfig) -> None:
+        self._config = config
+        self._store.save_config(config)
+
+    def reset_config(self) -> None:
+        self.update_config(ProjectConfig.default())
+
     def _load_scene_prompt_context(self) -> tuple[str | None, SceneSynopsisEntry | None]:
         scene_id = self._buffer.scene_id
         prior_id = previous_scene_id(scene_id)
         if prior_id is None:
             return None, None
-        tail = self._store.read_scene_tail(prior_id)
+        tail = self._store.read_scene_tail(
+            prior_id,
+            limit=self._config.context.scene_tail_limit,
+        )
         prior_cold = self._store.load_prior_scene_cold(scene_id)
         return (tail or None), prior_cold
 

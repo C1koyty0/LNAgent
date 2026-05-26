@@ -203,23 +203,26 @@ projects/<novel_id>/
 
 | 优先级 | 任务 | open-questions |
 |--------|------|----------------|
+| P0 | `/config` 项目级实时配置 | T8, C6 |
 | P0 | T8 Prompt 预算裁剪 | T8 |
 | P1 | C6 场景切换启发式升级 | C6 |
 | P1 | L7 讨论 vs 写作边界 | L7 |
 | P2 | P5 session 持久化粒度（可选） | P5 |
 | P2 | X4 命令解析规范化（可选） | X4 |
 
-- [ ] **5.1 T8 预算配置**：`Settings` / 环境变量可配各块字符上限与总预算  
+- [x] **5.0 `/config` 项目配置**：当前 project 内查看、修改、重置 Phase 5 配置；立即生效并持久化  
+  产出：`lnagent/cli/config.py`、`projects/<id>/config.json`
+- [x] **5.1 T8 预算配置**：项目配置可配各块字符上限与总预算  
   产出：`lnagent/config.py`、`lnagent/memory/context_budget.py`（或同等模块）
-- [ ] **5.2 T8 Prompt 裁剪**：`PromptContextBuilder` 超限时按优先级裁剪各块  
+- [x] **5.2 T8 Prompt 裁剪**：`PromptContextBuilder` 超限时按优先级裁剪各块  
   产出：`lnagent/memory/prompt.py` + 单测
-- [ ] **5.3 C6 切换建议**：抽出 `SceneSwitchAdvisor`，替换 `main.py` 中 `adopt_stack >= 2` 简版规则  
+- [x] **5.3 C6 切换建议**：抽出 `SceneSwitchAdvisor`，替换 `main.py` 中 `adopt_stack >= 2` 简版规则  
   产出：`lnagent/memory/scene_switch.py`（或 `lnagent/cli/scene_hint.py`）
-- [ ] **5.4 L7 System Prompt**：明确「讨论输出非正文，勿直接 adopt」  
+- [x] **5.4 L7 System Prompt**：明确「讨论输出非正文，勿直接 adopt」  
   产出：`lnagent/memory/prompt.py`
 - [ ] **5.5 P5 持久化（可选）**：评估并调整 `session.json` 写盘时机  
   产出：`lnagent/session.py`
-- [ ] **5.6 裁剪可感知（可选）**：超限时向作者提示已裁剪块与约略字数  
+- [x] **5.6 裁剪可感知（可选）**：超限时向作者提示已裁剪块与约略字数  
   产出：`NovelSession.send()` 或 CLI 层
 
 **验收**：
@@ -232,11 +235,12 @@ projects/<novel_id>/
 **Phase 5 已确认细节（方向 A）**：
 
 - **T8 计量单位**：**字符**（与 tail 500 字一致）；MVP 不引入 tokenizer 依赖。
+- **T8 默认预算**：总预算 `300000` 字符；分块默认值为 `messages=80000`、`adopted_prose=120000`、`hot_canon=60000`、`global=30000`、`prior_scene_cold=12000`、`scene_tail=2000`、`meta=10000`。
 - **T8 裁剪对象**（各块可独立上限 + 总预算）：Hot Canon、`synopsis.global`、上一场景 Cold、`scene_tail`、当前场景 `messages`、当前场景 `adopted_prose`。
 - **T8 裁剪顺序**（总预算仍超则按序裁到达标）：**最旧 `messages` → `adopted_prose` 头部 → 压缩 `global` 文本 → Hot Canon 角色/数组字段**；`meta`（title/style/world_rules）、本轮 `user_input`、**tail 优先保留**（tail 可先截断至上限，但不整段丢弃除非配置允许）。
-- **T8 配置入口**：`Settings` + 环境变量（如 `LNAGENT_CONTEXT_CHAR_BUDGET` 总预算；分块上限实现阶段命名）；缺省值按目标模型窗口估算，**短篇默认可设为「尽量全量，仅超总预算才裁」**。
+- **T8 配置入口**：`/config` 修改当前项目的 `config.json`，立即生效并持久化；启动级 `Settings` 仍只负责 API/model/project 路径。
 - **T8 作者感知**：发生裁剪时 **CLI 提示**（如「已裁剪历史对话约 N 字」）；不 silent fail。
-- **C6 规则（MVP 组合，OR）**：在现有「`adopt_stack` 次数 ≥ 2」基础上，可增加：**助手回复含完成/收束类信号词**、**连续 M 轮无 `/a`**（M 默认 3，实现可调）；仍 **仅建议**，不自动 `/sc`。
+- **C6 规则（MVP 组合，OR）**：保留「`adopt_stack` 次数 ≥ 2」；增加「连续 M 轮无 `/a`」（M 默认 3，通过 `/config` 可调）；暂不做完成/收束信号词和冷却；仍 **仅建议**，不自动 `/sc`。
 - **C6 模块边界**：逻辑独立于 `main.py`；`main.py` 在 `send` 回复后调用 advisor。
 - **L7**：**不**新增「讨论模式」命令；仅在 system 中加边界说明（与 L5 纯讨论共存）。
 - **P5（若做）**：保持 P2「不恢复 candidate」；优先在 adopt / 命令 / exit 时写盘，是否取消每轮 `send` 写盘实现阶段 benchmark 后定。

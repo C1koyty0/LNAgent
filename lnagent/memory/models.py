@@ -177,6 +177,109 @@ class ColdSynopsis:
         return None
 
 
+@dataclass
+class ContextConfig:
+    char_budget: int = 300_000
+    messages_limit: int = 80_000
+    adopted_prose_limit: int = 120_000
+    hot_canon_limit: int = 60_000
+    global_limit: int = 30_000
+    prior_scene_cold_limit: int = 12_000
+    scene_tail_limit: int = 2_000
+    meta_limit: int = 10_000
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "char_budget": self.char_budget,
+            "messages_limit": self.messages_limit,
+            "adopted_prose_limit": self.adopted_prose_limit,
+            "hot_canon_limit": self.hot_canon_limit,
+            "global_limit": self.global_limit,
+            "prior_scene_cold_limit": self.prior_scene_cold_limit,
+            "scene_tail_limit": self.scene_tail_limit,
+            "meta_limit": self.meta_limit,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ContextConfig:
+        default = cls()
+        return cls(
+            char_budget=_read_int(data, "char_budget", default.char_budget),
+            messages_limit=_read_int(data, "messages_limit", default.messages_limit),
+            adopted_prose_limit=_read_int(
+                data,
+                "adopted_prose_limit",
+                default.adopted_prose_limit,
+            ),
+            hot_canon_limit=_read_int(data, "hot_canon_limit", default.hot_canon_limit),
+            global_limit=_read_int(data, "global_limit", default.global_limit),
+            prior_scene_cold_limit=_read_int(
+                data,
+                "prior_scene_cold_limit",
+                default.prior_scene_cold_limit,
+            ),
+            scene_tail_limit=_read_int(data, "scene_tail_limit", default.scene_tail_limit),
+            meta_limit=_read_int(data, "meta_limit", default.meta_limit),
+        )
+
+
+@dataclass
+class SceneSwitchConfig:
+    min_adopts: int = 2
+    no_adopt_turns: int = 3
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "min_adopts": self.min_adopts,
+            "no_adopt_turns": self.no_adopt_turns,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SceneSwitchConfig:
+        default = cls()
+        return cls(
+            min_adopts=_read_int(data, "min_adopts", default.min_adopts),
+            no_adopt_turns=_read_int(data, "no_adopt_turns", default.no_adopt_turns),
+        )
+
+
+@dataclass
+class ProjectConfig:
+    context: ContextConfig = field(default_factory=ContextConfig)
+    scene_switch: SceneSwitchConfig = field(default_factory=SceneSwitchConfig)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "context": self.context.to_dict(),
+            "scene_switch": self.scene_switch.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ProjectConfig:
+        context_data = data.get("context", {})
+        scene_switch_data = data.get("scene_switch", {})
+        return cls(
+            context=ContextConfig.from_dict(
+                context_data if isinstance(context_data, dict) else {}
+            ),
+            scene_switch=SceneSwitchConfig.from_dict(
+                scene_switch_data if isinstance(scene_switch_data, dict) else {}
+            ),
+        )
+
+    @classmethod
+    def default(cls) -> ProjectConfig:
+        return cls()
+
+
+def _read_int(data: dict[str, Any], key: str, default: int) -> int:
+    value = data.get(key, default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 DEFAULT_SCENE_ID = "scene_001"
 
 

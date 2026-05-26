@@ -15,6 +15,7 @@ class CommandAction(str, Enum):
     SCENE = "scene"
     UNDO = "undo"
     FIX = "fix"
+    CONFIG = "config"
     HELP = "help"
     MESSAGE = "message"
 
@@ -32,6 +33,7 @@ HELP_TEXT = """\
   /sc, /scene   结束当前场景（须至少一次 /a）；Cold 摘要 review
   /u, /undo     撤销最后一次 adopt（正文 + Hot 一并回滚）
   /f, /fix      设定纠错（多行 + EOF 输入意图），仅改 Hot Canon
+  /config       查看或修改当前项目配置
   /h, /help     显示帮助
   quit/exit/q   退出"""
 
@@ -48,14 +50,19 @@ _COMMAND_ALIASES = {
     "/undo": CommandAction.UNDO,
     "/f": CommandAction.FIX,
     "/fix": CommandAction.FIX,
+    "/config": CommandAction.CONFIG,
 }
 
 
 def parse_command(text: str) -> ParsedCommand:
     stripped = text.strip()
-    action = _COMMAND_ALIASES.get(stripped.lower())
+    if not stripped:
+        return ParsedCommand(action=CommandAction.MESSAGE, text="")
+
+    first, _, rest = stripped.partition(" ")
+    action = _COMMAND_ALIASES.get(first.lower())
     if action is not None:
-        return ParsedCommand(action=action)
+        return ParsedCommand(action=action, text=rest.strip())
     return ParsedCommand(action=CommandAction.MESSAGE, text=stripped)
 
 

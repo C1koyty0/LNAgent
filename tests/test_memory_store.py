@@ -9,14 +9,18 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from lnagent.cli.commands import CommandAction, parse_command
+from lnagent.cli.config import ConfigCommandError, handle_config_args, run_config
 from lnagent.memory.canon_extractor import is_empty_canon_patch, merge_hot_canon
 from lnagent.memory.cold_archive import ColdArchiveExtractor, ColdProposal
 from lnagent.memory.models import (
     AdoptRecord,
     ChatMessage,
     ColdSynopsis,
+    ContextConfig,
     HotCanon,
     NovelMeta,
+    ProjectConfig,
+    SceneSwitchConfig,
     SceneSession,
     SceneSynopsisEntry,
     WorldCanon,
@@ -25,6 +29,7 @@ from lnagent.memory.models import (
     previous_scene_id,
 )
 from lnagent.memory.prompt import PromptContextBuilder
+from lnagent.memory.scene_switch import SceneSwitchAdvisor
 from lnagent.memory.short_term import ShortTermBuffer, build_prose_from_records
 from lnagent.memory.store import JsonMemoryStore
 from lnagent.session import NovelSession
@@ -44,6 +49,7 @@ class JsonMemoryStoreTest(unittest.TestCase):
         self.assertTrue((self.store.project_dir / "meta.json").exists() is False)
         self.assertTrue((self.store.project_dir / "memory" / "canon.json").is_file())
         self.assertTrue((self.store.project_dir / "memory" / "synopsis.json").is_file())
+        self.assertTrue((self.store.project_dir / "config.json").is_file())
         self.assertTrue((self.store.project_dir / "session.json").is_file())
         self.assertTrue(
             (self.store.project_dir / "manuscript" / "scene_001.md").is_file()
@@ -61,6 +67,26 @@ class JsonMemoryStoreTest(unittest.TestCase):
         self.assertEqual(loaded.title, "测试书")
         self.assertEqual(loaded.world_rules, ["魔法存在"])
         self.assertEqual(loaded.style, "第三人称")
+
+    def test_config_round_trip(self) -> None:
+        self.store.ensure_project_layout()
+        config = ProjectConfig.default()
+        config.context.char_budget = 500_000
+        config.scene_switch.no_adopt_turns = 5
+
+        self.store.save_config(config)
+        loaded = self.store.load_config()
+
+        self.assertEqual(loaded.context.char_budget, 500_000)
+        self.assertEqual(loaded.scene_switch.no_adopt_turns, 5)
+
+    def test_load_config_default_when_missing(self) -> None:
+        config = self.store.load_config()
+
+        self.assertEqual(config.context.char_budget, 300_000)
+        self.assertEqual(config.context.messages_limit, 80_000)
+        self.assertEqual(config.scene_switch.min_adopts, 2)
+        self.assertEqual(config.scene_switch.no_adopt_turns, 3)
 
     def test_session_round_trip(self) -> None:
         record = AdoptRecord(
@@ -337,6 +363,117 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertIn("他推开了门", system.content)
         self.assertNotIn("已采纳正文（当前场景）", system.content)
 
+    def test_build_includes_discussion_writing_boundary_instruction(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        builder = PromptContextBuilder()
+
+        messages = builder.build(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="讨论一下设定",
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertIn("区分“写作任务”和“讨论任务”", system.content)
+        self.assertIn("只有作者通过 /a 采纳的文本才视为正式正文", system.content)
+
+    def test_build_trims_oldest_messages_by_context_config(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        buffer = ShortTermBuffer(
+            scene_id="scene_001",
+            messages=[
+                ChatMessage(role="user", content="很旧的提问"),
+                ChatMessage(role="assistant", content="很旧的回答"),
+                ChatMessage(role="user", content="近况"),
+                ChatMessage(role="assistant", content="回应"),
+            ],
+        )
+        builder = PromptContextBuilder()
+
+        messages = builder.build(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=buffer,
+            user_input="继续",
+            context_config=ContextConfig(messages_limit=4),
+        )
+
+        contents = [m.content for m in messages]
+        self.assertNotIn("很旧的提问", contents)
+        self.assertNotIn("很旧的回答", contents)
+        self.assertIn("近况", contents)
+        self.assertIn("回应", contents)
+        self.assertGreater(builder.last_budget_report.clipped_chars["messages"], 0)
+
+    def test_build_trims_adopted_prose_head_by_context_config(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        buffer = ShortTermBuffer(scene_id="scene_001", adopted_prose="abcdef")
+        builder = PromptContextBuilder()
+
+        messages = builder.build(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=buffer,
+            user_input="继续",
+            context_config=ContextConfig(adopted_prose_limit=3),
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertIn("def", system.content)
+        self.assertNotIn("abcdef", system.content)
+        self.assertEqual(builder.last_budget_report.clipped_chars["adopted_prose"], 3)
+
+    def test_build_applies_total_budget_after_block_limits(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        buffer = ShortTermBuffer(
+            scene_id="scene_001",
+            messages=[ChatMessage(role="user", content="旧" * 500)],
+            adopted_prose="文" * 500,
+        )
+        builder = PromptContextBuilder()
+
+        messages = builder.build(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=buffer,
+            user_input="继续",
+            context_config=ContextConfig(
+                char_budget=600,
+                messages_limit=500,
+                adopted_prose_limit=500,
+            ),
+        )
+
+        total_chars = sum(len(str(message.content)) for message in messages)
+        self.assertLessEqual(total_chars, 600)
+        self.assertTrue(builder.last_budget_report.has_clipping)
+
+
+class SceneSwitchAdvisorTest(unittest.TestCase):
+    def test_suggests_when_min_adopts_reached(self) -> None:
+        advisor = SceneSwitchAdvisor(SceneSwitchConfig(min_adopts=2, no_adopt_turns=3))
+
+        suggestion = advisor.suggest(adopt_count=2, turns_since_last_adopt=0)
+
+        self.assertTrue(suggestion.should_suggest)
+
+    def test_suggests_when_no_adopt_turns_reached(self) -> None:
+        advisor = SceneSwitchAdvisor(SceneSwitchConfig(min_adopts=2, no_adopt_turns=3))
+
+        suggestion = advisor.suggest(adopt_count=0, turns_since_last_adopt=3)
+
+        self.assertTrue(suggestion.should_suggest)
+
+    def test_does_not_suggest_below_thresholds(self) -> None:
+        advisor = SceneSwitchAdvisor(SceneSwitchConfig(min_adopts=2, no_adopt_turns=3))
+
+        suggestion = advisor.suggest(adopt_count=1, turns_since_last_adopt=2)
+
+        self.assertFalse(suggestion.should_suggest)
+
 
 class SceneIdUtilTest(unittest.TestCase):
     def test_next_and_previous_scene_id(self) -> None:
@@ -410,6 +547,48 @@ class ColdArchiveExtractorTest(unittest.TestCase):
 
 
 class NovelSessionTest(unittest.TestCase):
+    def test_session_loads_project_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            config = ProjectConfig.default()
+            config.context.char_budget = 500_000
+            store.save_config(config)
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+
+            session = NovelSession(store, _FakeModel(), meta)
+
+            self.assertEqual(session.config.context.char_budget, 500_000)
+
+    def test_session_update_config_persists_immediately(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(store, _FakeModel(), meta)
+            config = ProjectConfig.default()
+            config.scene_switch.min_adopts = 4
+
+            session.update_config(config)
+
+            self.assertEqual(session.config.scene_switch.min_adopts, 4)
+            self.assertEqual(store.load_config().scene_switch.min_adopts, 4)
+
+    def test_session_reset_config_persists_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(store, _FakeModel(), meta)
+            config = ProjectConfig.default()
+            config.scene_switch.no_adopt_turns = 9
+            session.update_config(config)
+
+            session.reset_config()
+
+            self.assertEqual(session.config.scene_switch.no_adopt_turns, 3)
+            self.assertEqual(store.load_config().scene_switch.no_adopt_turns, 3)
+
     def test_send_loads_canon_for_prompt_builder(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
@@ -432,6 +611,73 @@ class NovelSessionTest(unittest.TestCase):
 
             self.assertEqual(reply, "模型回复")
             self.assertEqual(prompt_builder.seen_canon, canon)
+
+    def test_send_passes_project_context_config_to_prompt_builder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            config = ProjectConfig.default()
+            config.context.char_budget = 500_000
+            store.save_config(config)
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            prompt_builder = _CapturingPromptBuilder()
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                prompt_builder=prompt_builder,
+            )
+
+            session.send("继续写")
+
+            self.assertIsNotNone(prompt_builder.seen_context_config)
+            self.assertEqual(prompt_builder.seen_context_config.char_budget, 500_000)
+
+    def test_session_loads_scene_tail_with_configured_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            config = ProjectConfig.default()
+            config.context.scene_tail_limit = 800
+            store.save_config(config)
+            store.rewrite_scene_manuscript("scene_001", "甲" * 1_000)
+            store.save_session(SceneSession(scene_id="scene_002"))
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            prompt_builder = _CapturingPromptBuilder()
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                prompt_builder=prompt_builder,
+            )
+
+            session.send("开场")
+
+            self.assertEqual(len(prompt_builder.seen_scene_tail or ""), 800)
+
+    def test_send_tracks_turns_since_last_adopt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+            )
+
+            session.send("写开篇")
+            session.send("再换一种")
+
+            self.assertEqual(session.turns_since_last_adopt, 2)
+
+            session.commit_adopt(
+                session.prepare_adopt("正文。"),
+                accepted_canon=False,
+            )
+
+            self.assertEqual(session.turns_since_last_adopt, 0)
 
     def test_commit_adopt_accepts_canon_patch_and_clears_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -848,12 +1094,63 @@ class CommandParserTest(unittest.TestCase):
         self.assertEqual(parse_command("/undo").action, CommandAction.UNDO)
         self.assertEqual(parse_command("/f").action, CommandAction.FIX)
         self.assertEqual(parse_command("/fix").action, CommandAction.FIX)
+        self.assertEqual(parse_command("/config").action, CommandAction.CONFIG)
 
     def test_parse_plain_text_as_message(self) -> None:
         parsed = parse_command("继续写主角进酒馆")
 
         self.assertEqual(parsed.action, CommandAction.MESSAGE)
         self.assertEqual(parsed.text, "继续写主角进酒馆")
+
+    def test_parse_config_command_with_args(self) -> None:
+        parsed = parse_command("/config set context.char_budget 500000")
+
+        self.assertEqual(parsed.action, CommandAction.CONFIG)
+        self.assertEqual(parsed.text, "set context.char_budget 500000")
+
+
+class ConfigCommandTest(unittest.TestCase):
+    def test_set_updates_integer_config_value(self) -> None:
+        config = ProjectConfig.default()
+
+        updated, message = handle_config_args(config, "set context.char_budget 500000")
+
+        self.assertEqual(updated.context.char_budget, 500_000)
+        self.assertIn("context.char_budget = 500000", message)
+
+    def test_get_returns_single_config_value(self) -> None:
+        config = ProjectConfig.default()
+
+        updated, message = handle_config_args(config, "get scene_switch.no_adopt_turns")
+
+        self.assertEqual(updated, config)
+        self.assertEqual(message, "scene_switch.no_adopt_turns = 3")
+
+    def test_reset_single_config_value(self) -> None:
+        config = ProjectConfig.default()
+        config.scene_switch.no_adopt_turns = 9
+
+        updated, message = handle_config_args(config, "reset scene_switch.no_adopt_turns")
+
+        self.assertEqual(updated.scene_switch.no_adopt_turns, 3)
+        self.assertIn("scene_switch.no_adopt_turns = 3", message)
+
+    def test_unknown_config_key_raises(self) -> None:
+        with self.assertRaisesRegex(ConfigCommandError, "未知配置项"):
+            handle_config_args(ProjectConfig.default(), "get context.missing")
+
+    def test_invalid_config_value_raises(self) -> None:
+        with self.assertRaisesRegex(ConfigCommandError, "必须是整数"):
+            handle_config_args(ProjectConfig.default(), "set context.char_budget many")
+
+    def test_run_config_persists_updated_session_config(self) -> None:
+        session = _ConfigSession()
+
+        message = run_config(session, "set context.char_budget 500000")
+
+        self.assertIn("context.char_budget = 500000", message)
+        self.assertEqual(session.config.context.char_budget, 500_000)
+        self.assertTrue(session.updated)
 
 
 class _FakeModel:
@@ -866,9 +1163,21 @@ class _FakeResponse:
         self.content = content
 
 
+class _ConfigSession:
+    def __init__(self) -> None:
+        self.config = ProjectConfig.default()
+        self.updated = False
+
+    def update_config(self, config: ProjectConfig) -> None:
+        self.config = config
+        self.updated = True
+
+
 class _CapturingPromptBuilder:
     def __init__(self) -> None:
         self.seen_canon: HotCanon | None = None
+        self.seen_context_config: ContextConfig | None = None
+        self.seen_scene_tail: str | None = None
 
     def build(
         self,
@@ -880,6 +1189,10 @@ class _CapturingPromptBuilder:
         **kwargs: object,
     ) -> list[HumanMessage]:
         self.seen_canon = canon
+        value = kwargs.get("context_config")
+        self.seen_context_config = value if isinstance(value, ContextConfig) else None
+        tail = kwargs.get("scene_tail")
+        self.seen_scene_tail = tail if isinstance(tail, str) else None
         return [HumanMessage(content=user_input)]
 
 

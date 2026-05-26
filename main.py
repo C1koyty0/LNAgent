@@ -5,6 +5,7 @@ import sys
 
 from lnagent import Settings, create_chat_model
 from lnagent.cli.adopt import read_adopt_text, read_yes_no
+from lnagent.cli.config import run_config
 from lnagent.cli.commands import (
     HELP_TEXT,
     CommandAction,
@@ -16,6 +17,8 @@ from lnagent.cli.scene import run_scene_switch
 from lnagent.cli.undo import run_undo
 from lnagent.memory.canon_extractor import CanonPatchParseError
 from lnagent.memory.cold_archive import ColdProposalParseError
+from lnagent.memory.context_budget import format_budget_notice
+from lnagent.memory.scene_switch import SceneSwitchAdvisor
 from lnagent.memory.store import JsonMemoryStore
 from lnagent.project import open_or_create_project
 from lnagent.session import NovelSession
@@ -88,14 +91,24 @@ def run_cli(argv: list[str] | None = None) -> None:
                 run_undo(session)
             elif command.action == CommandAction.FIX:
                 run_fix(session)
+            elif command.action == CommandAction.CONFIG:
+                print(run_config(session, command.text))
+                print()
             elif command.action == CommandAction.HELP:
                 print(HELP_TEXT)
                 print()
             else:
                 reply = session.send(command.text)
                 print(f"助手: {reply}\n")
-                if len(session.adopt_stack) >= 2:
-                    print("提示: 本场景已有多次采纳，可考虑使用 /sc 结束场景。\n")
+                budget_notice = format_budget_notice(session.last_budget_report)
+                if budget_notice:
+                    print(f"{budget_notice}\n")
+                suggestion = SceneSwitchAdvisor(session.config.scene_switch).suggest(
+                    adopt_count=len(session.adopt_stack),
+                    turns_since_last_adopt=session.turns_since_last_adopt,
+                )
+                if suggestion.should_suggest:
+                    print(f"提示: {suggestion.reason}，可考虑使用 /sc 结束场景。\n")
         except CanonPatchParseError as exc:
             print(f"Hot Canon 抽取失败: {exc}。请重试 /a 或 /f。\n")
         except ColdProposalParseError as exc:

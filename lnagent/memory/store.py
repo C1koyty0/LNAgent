@@ -10,6 +10,7 @@ from lnagent.memory.models import (
     ColdSynopsis,
     HotCanon,
     NovelMeta,
+    ProjectConfig,
     SceneSession,
     SceneSynopsisEntry,
     extract_tail,
@@ -22,6 +23,7 @@ class JsonMemoryStore:
     def __init__(self, project_dir: Path) -> None:
         self._project_dir = project_dir
         self._meta_path = project_dir / "meta.json"
+        self._config_path = project_dir / "config.json"
         self._session_path = project_dir / "session.json"
         self._canon_path = project_dir / "memory" / "canon.json"
         self._synopsis_path = project_dir / "memory" / "synopsis.json"
@@ -45,6 +47,9 @@ class JsonMemoryStore:
         if not self._synopsis_path.is_file():
             self._write_json(self._synopsis_path, ColdSynopsis.empty().to_dict())
 
+        if not self._config_path.is_file():
+            self.save_config(ProjectConfig.default())
+
         if not self._manuscript_path.is_file():
             self._manuscript_path.write_text("", encoding="utf-8")
 
@@ -57,6 +62,15 @@ class JsonMemoryStore:
 
     def save_meta(self, meta: NovelMeta) -> None:
         self._write_json(self._meta_path, meta.to_dict())
+
+    def load_config(self) -> ProjectConfig:
+        if not self._config_path.is_file():
+            return ProjectConfig.default()
+        data = self._read_json(self._config_path)
+        return ProjectConfig.from_dict(data)
+
+    def save_config(self, config: ProjectConfig) -> None:
+        self._write_json(self._config_path, config.to_dict())
 
     def load_canon(self) -> HotCanon:
         if not self._canon_path.is_file():
@@ -108,8 +122,10 @@ class JsonMemoryStore:
         if not scene_path.is_file():
             scene_path.write_text("", encoding="utf-8")
 
-    def read_scene_tail(self, scene_id: str) -> str:
-        return extract_tail(self.read_scene_manuscript(scene_id))
+    def read_scene_tail(self, scene_id: str, *, limit: int | None = None) -> str:
+        if limit is None:
+            return extract_tail(self.read_scene_manuscript(scene_id))
+        return extract_tail(self.read_scene_manuscript(scene_id), limit=limit)
 
     def load_prior_scene_cold(self, scene_id: str) -> SceneSynopsisEntry | None:
         prior_id = previous_scene_id(scene_id)
