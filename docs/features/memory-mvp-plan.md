@@ -105,7 +105,7 @@ projects/<novel_id>/
 **open-questions 暂按默认**：
 
 - L4：meta 注入 `title`、`world_rules`、`style`（开书时必填此三字段）
-- P5：每轮 `send` 后写 `session.json`
+- P5：Phase 1 暂按每轮 `send` 写盘；**Phase 5.5** 改为 checkpoint_only（见 Phase 5.5）
 
 ---
 
@@ -220,17 +220,17 @@ projects/<novel_id>/
   产出：`lnagent/memory/scene_switch.py`（或 `lnagent/cli/scene_hint.py`）
 - [x] **5.4 L7 System Prompt**：明确「讨论输出非正文，勿直接 adopt」  
   产出：`lnagent/memory/prompt.py`
-- [ ] **5.5 P5 持久化（可选）**：评估并调整 `session.json` 写盘时机  
+- [x] **5.5 P5 持久化（checkpoint_only）**：`send()` 不写盘；仅在 adopt / undo / fix / reconcile / `/sc` / 退出时写 `session.json`  
   产出：`lnagent/session.py`
 - [x] **5.6 裁剪可感知（可选）**：超限时向作者提示已裁剪块与约略字数  
   产出：`NovelSession.send()` 或 CLI 层
 
 **验收**：
 
-- [ ] 长对话（如 10+ 轮）或多场景项目下 `send` 仍稳定；超预算时有确定行为（裁剪或明确报错），不 silent 丢块。
-- [ ] 单元测试覆盖：各块独立超限、总预算超限、裁剪顺序、tail/Hot 保留优先级。
-- [ ] `/sc` 建议在 beat 完成附近出现；正常续写时不过度打扰（规则可配置或文档化阈值）。
-- [ ] System prompt 含讨论/写作边界说明；纯讨论轮次输出偏分析而非小说段落（手工 spot-check）。
+- [ ] 长对话（如 10+ 轮）或多场景项目下 `send` 仍稳定；超预算时有确定行为（裁剪或明确报错），不 silent 丢块。（建议手工 spot-check）
+- [x] 单元测试覆盖：各块独立超限、总预算超限、裁剪顺序、tail/Hot 保留优先级。
+- [x] `/sc` 建议在 beat 完成附近出现；正常续写时不过度打扰（规则可配置或文档化阈值）。
+- [x] System prompt 含讨论/写作边界说明；纯讨论轮次输出偏分析而非小说段落（单测覆盖边界文案；语气仍建议手工 spot-check）。
 
 **Phase 5 已确认细节（方向 A）**：
 
@@ -243,7 +243,7 @@ projects/<novel_id>/
 - **C6 规则（MVP 组合，OR）**：保留「`adopt_stack` 次数 ≥ 2」；增加「连续 M 轮无 `/a`」（M 默认 3，通过 `/config` 可调）；暂不做完成/收束信号词和冷却；仍 **仅建议**，不自动 `/sc`。
 - **C6 模块边界**：逻辑独立于 `main.py`；`main.py` 在 `send` 回复后调用 advisor。
 - **L7**：**不**新增「讨论模式」命令；仅在 system 中加边界说明（与 L5 纯讨论共存）。
-- **P5（若做）**：保持 P2「不恢复 candidate」；优先在 adopt / 命令 / exit 时写盘，是否取消每轮 `send` 写盘实现阶段 benchmark 后定。
+- **P5（5.5 已确认）**：策略 **`checkpoint_only`**——`send()` 不写 `session.json`；检查点：`commit_adopt`、`undo_last_adopt`、`commit_fix`、`apply_reconcile`、`finish_scene_switch`、CLI 退出 `session.save()`。保持 P2「不恢复 candidate」。自上次检查点以来的纯讨论 `messages` 在异常退出时可能丢失；已 adopt 正文在 manuscript + 检查点 session 中不丢。
 - **X4（若做）**：维持 `/` 前缀 + 小写别名；大小写兼容为低优先级。
 
 ---
@@ -408,7 +408,7 @@ Phase 4（`/u`、`/f`）视为完成当：
 - [x] `/u` 撤销最后一次 adopt；正文 + Hot 回滚；`accepted_canon=false` 可撤；不动 `messages`
 - [x] `/f` 多行纠错意图 → patch diff → y/n；不改正文、不写 `adopt_stack`
 
-Phase 5（中篇可用，方向 A）待迭代。
+Phase 5（中篇可用，方向 A）核心任务已完成；验收项中手工 spot-check 项可继续迭代。
 
 Phase 6 第一版（`/export`、`--meta`、扩展 meta 注入）已完成；Phase 7+ 为规划项，实现前再拆任务与验收。
 
@@ -424,3 +424,4 @@ Phase 6 第一版（`/export`、`--meta`、扩展 meta 注入）已完成；Phas
 | 2026-05-26 | Phase 4 已确认并实现：`/f` 多行+EOF、同 schema patch；`/u` 栈顶回滚与默认边界 |
 | 2026-05-26 | 新增 Phase 5（方向 A：T8/C6/L7）及 Phase 6/7+ 路线规划 |
 | 2026-05-27 | Phase 6 第一版实现完成：`/export`、`--meta` JSON 开书、扩展 meta Prompt 注入 |
+| 2026-05-27 | Phase 5.5：`session.json` checkpoint_only 写盘策略实现 |

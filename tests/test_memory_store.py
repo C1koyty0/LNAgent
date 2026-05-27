@@ -766,6 +766,80 @@ class ExportManuscriptTest(unittest.TestCase):
                 export_manuscript(store, today=date(2026, 5, 27))
 
 
+class CountingMemoryStore(JsonMemoryStore):
+    def __init__(self, project_dir: Path) -> None:
+        super().__init__(project_dir)
+        self.save_session_count = 0
+
+    def save_session(self, session: SceneSession) -> None:
+        self.save_session_count += 1
+        super().save_session(session)
+
+
+class SessionCheckpointPersistTest(unittest.TestCase):
+    def test_send_does_not_persist_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = CountingMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(store, _FakeModel(), meta)
+            store.save_session_count = 0
+
+            session.send("第一轮")
+            session.send("第二轮")
+
+            self.assertEqual(store.save_session_count, 0)
+
+    def test_commit_adopt_persists_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = CountingMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+            )
+            session.send("写开篇")
+            session.commit_adopt(
+                session.prepare_adopt("正文。"),
+                accepted_canon=False,
+            )
+
+            self.assertGreaterEqual(store.save_session_count, 1)
+            self.assertEqual(len(store.load_session().messages), 2)
+
+    def test_session_save_after_send_persists_messages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(store, _FakeModel(), meta)
+            session.send("写开篇")
+
+            session.save()
+
+            reloaded = NovelSession(store, _FakeModel(), meta)
+            self.assertEqual(len(reloaded.adopt_stack), 0)
+            loaded = store.load_session()
+            self.assertEqual(len(loaded.messages), 2)
+
+    def test_send_without_checkpoint_leaves_disk_session_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(store, _FakeModel(), meta)
+            session.send("写开篇")
+
+            reloaded = NovelSession(store, _FakeModel(), meta)
+            loaded = store.load_session()
+
+            self.assertEqual(loaded.messages, [])
+            self.assertEqual(len(reloaded.adopt_stack), 0)
+
+
 class ColdArchiveExtractorTest(unittest.TestCase):
     def test_propose_parses_json(self) -> None:
         payload = (
@@ -1193,11 +1267,11 @@ class NovelSessionTest(unittest.TestCase):
                 canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
             )
             session.send("写开篇")
-            message_count = len(store.load_session().messages)
             session.commit_adopt(
                 session.prepare_adopt("正文。"),
                 accepted_canon=False,
             )
+            message_count = len(store.load_session().messages)
 
             session.undo_last_adopt()
 

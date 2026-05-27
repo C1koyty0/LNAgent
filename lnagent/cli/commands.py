@@ -37,7 +37,9 @@ HELP_TEXT = """\
   /config       查看或修改当前项目配置
   /export       导出全书纯正文，可选输出路径
   /h, /help     显示帮助
-  quit/exit/q   退出"""
+  quit/exit/q   退出
+
+说明：未 /a 的纯讨论轮次仅在检查点（/a、/u、/f、/sc 或退出）后写入 session.json。"""
 
 _COMMAND_ALIASES = {
     "/a": CommandAction.ADOPT,

@@ -151,7 +151,6 @@ class NovelSession:
         self._buffer.append_assistant(reply)
         self._buffer.set_candidate(reply)
         self._turns_since_last_adopt += 1
-        self._persist_session()
         return reply
 
     def prepare_adopt(self, text: str) -> AdoptProposal:

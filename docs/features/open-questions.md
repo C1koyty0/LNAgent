@@ -57,7 +57,7 @@
 |----|------|------|-------------|
 | **P3** | 🔴 | **MVP 是否支持 manuscript 合并导出？** | 如 `export.md` 合并所有 scene；非阻塞 MVP。 |
 | **P4** | 🔴 | **projects 根路径是否可配置** | 环境变量 `LNAGENT_PROJECTS_DIR` vs 固定 `./projects`？ |
-| **P5** | 🔴 | **`session.json` 持久化粒度** | 每轮对话后写盘 vs 仅 adopt / exit 时写；与 P2「不恢复候选」的关系。 |
+| **P5** | 🟢 | **`session.json` 持久化粒度** | **checkpoint_only**（Phase 5.5）：`send()` 不写盘；adopt / undo / fix / reconcile / `/sc` / 退出时写盘。纯讨论轮次异常退出可丢 `messages`；candidate 仍不恢复（P2）。见 [memory-mvp-plan Phase 5.5](./memory-mvp-plan.md#phase-5中篇可用方向-a)。 |
 | **P6** | 🔴 | **开书 meta 采集交互** | 交互式问答逐字段 vs 一次粘贴 vs 模板文件；`meta.json` 最小必填字段列表。 |
 | **E3** | 🟢 | **正文与 Hot 不一致时的 reconcile** | 不自动重抽；`/sc` 时**逐条** reconcile `adopt_stack` 中 `accepted_canon=false`；口头纠错走 `/f`。 |
 
@@ -105,3 +105,4 @@
 | 2026-05-25 | 补充 Phase 2 默认：`/a` 使用 EOF 多行输入；Hot patch 覆盖 `characters`、`world.rules[]`、`plot_threads[]` |
 | 2026-05-25 | Phase 3：S5/S6/L6 Cold、X1/X3、E3 等标 🟢；新增 §6 决议摘要 |
 | 2026-05-26 | Phase 4：X2 标 🟢；新增 §7 决议摘要（`/f` 输入与 patch、`/u` 边界） |
+| 2026-05-27 | Phase 5.5：P5 标 🟢，checkpoint_only session 写盘策略 |
