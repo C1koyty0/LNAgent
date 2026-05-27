@@ -28,21 +28,48 @@ class NovelMeta:
     title: str
     world_rules: list[str]
     style: str
+    pov: str = ""
+    tense: str = ""
+    taboos: list[str] = field(default_factory=list)
+    target_audience: str = ""
+    narrative_rules: list[str] = field(default_factory=list)
+    genre: str = ""
+    tone: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "world_rules": self.world_rules,
             "style": self.style,
+            "pov": self.pov,
+            "tense": self.tense,
+            "taboos": self.taboos,
+            "target_audience": self.target_audience,
+            "narrative_rules": self.narrative_rules,
+            "genre": self.genre,
+            "tone": self.tone,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> NovelMeta:
         rules = data.get("world_rules", [])
+        taboos = data.get("taboos", [])
+        narrative_rules = data.get("narrative_rules", [])
         return cls(
             title=str(data["title"]),
             world_rules=[str(r) for r in rules],
             style=str(data["style"]),
+            pov=str(data.get("pov", "")),
+            tense=str(data.get("tense", "")),
+            taboos=[str(r) for r in taboos] if isinstance(taboos, list) else [],
+            target_audience=str(data.get("target_audience", "")),
+            narrative_rules=(
+                [str(r) for r in narrative_rules]
+                if isinstance(narrative_rules, list)
+                else []
+            ),
+            genre=str(data.get("genre", "")),
+            tone=str(data.get("tone", "")),
         )
 
 

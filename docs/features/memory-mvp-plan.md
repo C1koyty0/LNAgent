@@ -248,19 +248,46 @@ projects/<novel_id>/
 
 ---
 
-### Phase 6：工作流（方向 B，规划）
+### Phase 6：工作流（方向 B，第一版）
 
-> **目标**：日常写作工具化——导出、开书、模板；**依赖 Phase 5 稳定后再做**。
+> **目标**：日常写作工具化——优先交付正文导出、JSON meta 开书、扩展 meta 注入；**依赖 Phase 5 稳定后再做**。
 
 | 优先级 | 能力 | open-questions |
 |--------|------|----------------|
-| P0 | P3 manuscript 合并导出（`/export` 或脚本） | P3 |
-| P1 | P6 开书 meta 采集改进（模板文件 / 一次粘贴） | P6 |
+| P0 | P3 manuscript 合并导出（CLI 命令 `/export [output_path]`） | P3 |
+| P1 | P6 开书 meta 采集改进（第一版仅支持 `--meta <path>` JSON 文件） | P6 |
 | P1 | L4 meta 字段扩展与人称/禁忌等注入 | L4 |
-| P2 | 文风 / 叙事模板 preset | README 路线图 |
-| P2 | P4 projects 路径 CLI 暴露（`LNAGENT_PROJECTS_DIR` 已有） | P4 |
+| P2 | 文风 / 叙事模板 preset（暂不实现） | README 路线图 |
+| P2 | P4 projects 路径 CLI 暴露（暂不实现，`LNAGENT_PROJECTS_DIR` 已有） | P4 |
 
-**验收（草案）**：一条命令导出全书 `manuscript`；新 project 可用模板初始化 meta；扩展字段进入 Prompt。
+- [x] **6.1 文档固化**：明确 Phase 6 第一版范围、非目标与验收项
+  产出：`docs/features/memory-mvp-plan.md`
+- [x] **6.2 `/export` 导出**：CLI 支持 `/export [output_path]`；纯正文导出；默认写入项目根目录 `exports/YYYY-MM-DD.md`，同名文件自动追加数字后缀
+  产出：`lnagent/cli/export.py`、`main.py`、`lnagent/cli/commands.py`
+- [x] **6.3 场景合并规则**：严格按 `manuscript/scene_XXX.md` 编号升序合并；每个场景使用 `## Scene 001` 分隔；空场景跳过
+  产出：`lnagent/memory/store.py` 或导出模块
+- [x] **6.4 `--meta` JSON 开书**：新 project 创建时可通过 `--meta <path>` 初始化；已有 project 传入 `--meta` 直接报错，不覆盖 `meta.json`
+  产出：`main.py`、`lnagent/project.py`
+- [x] **6.5 meta 字段扩展**：`NovelMeta` 增加 `pov`、`tense`、`taboos`、`target_audience`、`narrative_rules`、`genre`、`tone`；旧项目缺字段时保持空值
+  产出：`lnagent/memory/models.py`
+- [x] **6.6 Prompt 注入**：扩展字段仅在非空时进入 Prompt；`taboos`、`narrative_rules` 以列表形式注入
+  产出：`lnagent/memory/prompt.py`
+
+**Phase 6 第一版暂不实现**：
+
+- `--template` / 模板文件开书。
+- 一次性粘贴 meta 或自然语言 meta 抽取。
+- 文风 / 叙事 preset；后续实现时如与 meta 不一致应在初始化时报错。
+- `/meta` 或 `/config meta.*` 修改已有项目 meta。
+- 使用 `--meta` 覆盖已有 project 的 `meta.json`。
+
+**验收**：
+
+- [x] `/export` 可一条命令导出全书纯正文；默认路径在项目 `exports/` 下；显式路径可用。
+- [x] 导出内容严格按 `scene_XXX` 编号升序排列，并以 `## Scene 001` 等标题分隔。
+- [x] 新 project 可通过 `--meta <path>` JSON 初始化；已有 project 携带 `--meta` 启动时报错且不覆盖 meta。
+- [x] 旧 project 的 `meta.json` 缺新增字段时仍可正常启动，新增字段为空。
+- [x] 非空扩展 meta 字段进入 Prompt，空字段不注入。
 
 ---
 
@@ -383,7 +410,7 @@ Phase 4（`/u`、`/f`）视为完成当：
 
 Phase 5（中篇可用，方向 A）待迭代。
 
-Phase 6 / Phase 7+ 为规划项，实现前再拆任务与验收。
+Phase 6 第一版（`/export`、`--meta`、扩展 meta 注入）已完成；Phase 7+ 为规划项，实现前再拆任务与验收。
 
 ---
 
@@ -396,3 +423,4 @@ Phase 6 / Phase 7+ 为规划项，实现前再拆任务与验收。
 | 2026-05-25 | Phase 2–3 实现完成：勾选任务与验收；补充 Phase 3 DoD |
 | 2026-05-26 | Phase 4 已确认并实现：`/f` 多行+EOF、同 schema patch；`/u` 栈顶回滚与默认边界 |
 | 2026-05-26 | 新增 Phase 5（方向 A：T8/C6/L7）及 Phase 6/7+ 路线规划 |
+| 2026-05-27 | Phase 6 第一版实现完成：`/export`、`--meta` JSON 开书、扩展 meta Prompt 注入 |

@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 from lnagent import Settings, create_chat_model
 from lnagent.cli.adopt import read_adopt_text, read_yes_no
@@ -12,6 +13,7 @@ from lnagent.cli.commands import (
     format_canon_summary,
     parse_command,
 )
+from lnagent.cli.export import export_manuscript
 from lnagent.cli.fix import run_fix
 from lnagent.cli.scene import run_scene_switch
 from lnagent.cli.undo import run_undo
@@ -34,6 +36,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="ID",
         help="novel project id (projects/<ID>/)",
     )
+    parser.add_argument(
+        "--meta",
+        metavar="PATH",
+        help="initialize a new project from a meta JSON file",
+    )
     return parser.parse_args(argv)
 
 
@@ -43,7 +50,8 @@ def run_cli(argv: list[str] | None = None) -> None:
     store = JsonMemoryStore(settings.project_dir)
 
     try:
-        meta = open_or_create_project(store)
+        meta_path = Path(args.meta) if args.meta else None
+        meta = open_or_create_project(store, meta_path=meta_path)
     except ValueError as exc:
         print(f"错误: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -94,6 +102,10 @@ def run_cli(argv: list[str] | None = None) -> None:
             elif command.action == CommandAction.CONFIG:
                 print(run_config(session, command.text))
                 print()
+            elif command.action == CommandAction.EXPORT:
+                output_path = Path(command.text) if command.text else None
+                exported_path = export_manuscript(store, output_path)
+                print(f"已导出: {exported_path}\n")
             elif command.action == CommandAction.HELP:
                 print(HELP_TEXT)
                 print()

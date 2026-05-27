@@ -16,6 +16,7 @@ class CommandAction(str, Enum):
     UNDO = "undo"
     FIX = "fix"
     CONFIG = "config"
+    EXPORT = "export"
     HELP = "help"
     MESSAGE = "message"
 
@@ -34,6 +35,7 @@ HELP_TEXT = """\
   /u, /undo     撤销最后一次 adopt（正文 + Hot 一并回滚）
   /f, /fix      设定纠错（多行 + EOF 输入意图），仅改 Hot Canon
   /config       查看或修改当前项目配置
+  /export       导出全书纯正文，可选输出路径
   /h, /help     显示帮助
   quit/exit/q   退出"""
 
@@ -51,6 +53,7 @@ _COMMAND_ALIASES = {
     "/f": CommandAction.FIX,
     "/fix": CommandAction.FIX,
     "/config": CommandAction.CONFIG,
+    "/export": CommandAction.EXPORT,
 }
 
 

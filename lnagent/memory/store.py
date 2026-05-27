@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from lnagent.memory.models import (
@@ -17,6 +18,8 @@ from lnagent.memory.models import (
     previous_scene_id,
 )
 from lnagent.memory.short_term import append_prose
+
+_SCENE_FILE_PATTERN = re.compile(r"^scene_(\d+)\.md$")
 
 
 class JsonMemoryStore:
@@ -132,6 +135,20 @@ class JsonMemoryStore:
         if prior_id is None:
             return None
         return self.load_synopsis().find_scene(prior_id)
+
+    def list_scene_manuscript_paths(self) -> list[Path]:
+        manuscript_dir = self._project_dir / "manuscript"
+        if not manuscript_dir.is_dir():
+            return []
+        scene_paths = [
+            path
+            for path in manuscript_dir.iterdir()
+            if path.is_file() and _SCENE_FILE_PATTERN.match(path.name)
+        ]
+        return sorted(
+            scene_paths,
+            key=lambda path: int(_SCENE_FILE_PATTERN.match(path.name).group(1)),  # type: ignore[union-attr]
+        )
 
     def _scene_manuscript_path(self, scene_id: str) -> Path:
         return self._project_dir / "manuscript" / f"{scene_id}.md"

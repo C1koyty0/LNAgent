@@ -52,6 +52,22 @@ class PromptContextBuilder:
         if meta.world_rules:
             rules_text = "\n".join(f"- {rule}" for rule in meta.world_rules)
             meta_parts.append(f"世界规则：\n{rules_text}")
+        if meta.pov:
+            meta_parts.append(f"叙述人称：{meta.pov}")
+        if meta.tense:
+            meta_parts.append(f"叙事时态：{meta.tense}")
+        if meta.taboos:
+            taboos_text = "\n".join(f"- {rule}" for rule in meta.taboos)
+            meta_parts.append(f"禁忌内容：\n{taboos_text}")
+        if meta.target_audience:
+            meta_parts.append(f"目标读者：{meta.target_audience}")
+        if meta.narrative_rules:
+            narrative_rules_text = "\n".join(f"- {rule}" for rule in meta.narrative_rules)
+            meta_parts.append(f"叙事规则：\n{narrative_rules_text}")
+        if meta.genre:
+            meta_parts.append(f"题材类型：{meta.genre}")
+        if meta.tone:
+            meta_parts.append(f"整体语气：{meta.tone}")
         meta_text = clip_head("\n".join(meta_parts), config.meta_limit, report, "meta")
 
         global_text = clip_head(

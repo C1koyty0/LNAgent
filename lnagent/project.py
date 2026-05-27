@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from lnagent.memory.models import NovelMeta
 from lnagent.memory.store import JsonMemoryStore
+
+_REQUIRED_META_FIELDS = ("title", "style", "world_rules")
 
 
 def collect_novel_meta() -> NovelMeta:
@@ -33,10 +38,52 @@ def init_project(store: JsonMemoryStore) -> NovelMeta:
     return meta
 
 
-def open_or_create_project(store: JsonMemoryStore) -> NovelMeta:
+def init_project_from_meta_file(store: JsonMemoryStore, meta_path: Path) -> NovelMeta:
+    meta = load_meta_from_file(meta_path)
+    store.ensure_project_layout()
+    store.save_meta(meta)
+    return meta
+
+
+def open_or_create_project(
+    store: JsonMemoryStore,
+    *,
+    meta_path: Path | None = None,
+) -> NovelMeta:
     if store.project_exists():
+        if meta_path is not None:
+            raise ValueError("不能覆盖已有项目的 meta.json")
         return store.load_meta()
+    if meta_path is not None:
+        return init_project_from_meta_file(store, meta_path)
     return init_project(store)
+
+
+def load_meta_from_file(meta_path: Path) -> NovelMeta:
+    try:
+        text = meta_path.read_text(encoding="utf-8")
+        data = json.loads(text)
+    except OSError as exc:
+        raise ValueError(f"无法读取 meta 文件: {meta_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"meta 文件不是有效 JSON: {meta_path}") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError("meta JSON 根节点必须是对象")
+
+    missing = [field for field in _REQUIRED_META_FIELDS if field not in data]
+    if missing:
+        raise ValueError(f"meta JSON 缺少必填字段: {', '.join(missing)}")
+
+    if not str(data["title"]).strip():
+        raise ValueError("meta JSON 字段 title 不能为空")
+    if not str(data["style"]).strip():
+        raise ValueError("meta JSON 字段 style 不能为空")
+    world_rules = data["world_rules"]
+    if not isinstance(world_rules, list) or not world_rules:
+        raise ValueError("meta JSON 字段 world_rules 必须是非空数组")
+
+    return NovelMeta.from_dict(data)
 
 
 def _prompt_required(label: str) -> str:

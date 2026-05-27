@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from main import parse_args as parse_main_args
 from lnagent.cli.commands import CommandAction, parse_command
 from lnagent.cli.config import ConfigCommandError, handle_config_args, run_config
+from lnagent.cli.export import export_manuscript
 from lnagent.memory.canon_extractor import is_empty_canon_patch, merge_hot_canon
 from lnagent.memory.cold_archive import ColdArchiveExtractor, ColdProposal
 from lnagent.memory.models import (
@@ -32,6 +36,7 @@ from lnagent.memory.prompt import PromptContextBuilder
 from lnagent.memory.scene_switch import SceneSwitchAdvisor
 from lnagent.memory.short_term import ShortTermBuffer, build_prose_from_records
 from lnagent.memory.store import JsonMemoryStore
+from lnagent.project import load_meta_from_file, open_or_create_project
 from lnagent.session import NovelSession
 
 
@@ -67,6 +72,49 @@ class JsonMemoryStoreTest(unittest.TestCase):
         self.assertEqual(loaded.title, "测试书")
         self.assertEqual(loaded.world_rules, ["魔法存在"])
         self.assertEqual(loaded.style, "第三人称")
+
+    def test_extended_meta_round_trip(self) -> None:
+        meta = NovelMeta(
+            title="测试书",
+            world_rules=["魔法存在"],
+            style="轻松",
+            pov="第一人称",
+            tense="现在时",
+            taboos=["不写血腥描写"],
+            target_audience="轻小说读者",
+            narrative_rules=["多用动作推进"],
+            genre="校园奇幻",
+            tone="温暖明快",
+        )
+        self.store.ensure_project_layout()
+        self.store.save_meta(meta)
+
+        loaded = self.store.load_meta()
+
+        self.assertEqual(loaded.pov, "第一人称")
+        self.assertEqual(loaded.tense, "现在时")
+        self.assertEqual(loaded.taboos, ["不写血腥描写"])
+        self.assertEqual(loaded.target_audience, "轻小说读者")
+        self.assertEqual(loaded.narrative_rules, ["多用动作推进"])
+        self.assertEqual(loaded.genre, "校园奇幻")
+        self.assertEqual(loaded.tone, "温暖明快")
+
+    def test_old_meta_without_extended_fields_defaults_to_empty_values(self) -> None:
+        meta = NovelMeta.from_dict(
+            {
+                "title": "旧书",
+                "world_rules": ["旧规则"],
+                "style": "轻松",
+            }
+        )
+
+        self.assertEqual(meta.pov, "")
+        self.assertEqual(meta.tense, "")
+        self.assertEqual(meta.taboos, [])
+        self.assertEqual(meta.target_audience, "")
+        self.assertEqual(meta.narrative_rules, [])
+        self.assertEqual(meta.genre, "")
+        self.assertEqual(meta.tone, "")
 
     def test_config_round_trip(self) -> None:
         self.store.ensure_project_layout()
@@ -136,6 +184,89 @@ class JsonMemoryStoreTest(unittest.TestCase):
 
         manuscript = self.store.project_dir / "manuscript" / "scene_001.md"
         self.assertEqual(manuscript.read_text(encoding="utf-8"), "新正文。\n")
+
+
+class ProjectInitTest(unittest.TestCase):
+    def test_load_meta_from_file_reads_extended_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            meta_path = Path(tmp) / "meta.json"
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "title": "测试书",
+                        "style": "轻松",
+                        "world_rules": ["魔法存在"],
+                        "pov": "第一人称",
+                        "taboos": ["不写血腥"],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            meta = load_meta_from_file(meta_path)
+
+            self.assertEqual(meta.title, "测试书")
+            self.assertEqual(meta.pov, "第一人称")
+            self.assertEqual(meta.taboos, ["不写血腥"])
+
+    def test_load_meta_from_file_requires_required_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            meta_path = Path(tmp) / "meta.json"
+            meta_path.write_text(
+                json.dumps({"title": "测试书", "style": "轻松"}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "world_rules"):
+                load_meta_from_file(meta_path)
+
+    def test_open_or_create_project_uses_meta_file_for_new_project(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            meta_path = root / "meta.json"
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "title": "测试书",
+                        "style": "轻松",
+                        "world_rules": ["魔法存在"],
+                        "genre": "校园奇幻",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            store = JsonMemoryStore(root / "project")
+
+            meta = open_or_create_project(store, meta_path=meta_path)
+
+            self.assertEqual(meta.title, "测试书")
+            self.assertEqual(store.load_meta().genre, "校园奇幻")
+
+    def test_open_or_create_project_rejects_meta_file_for_existing_project(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = JsonMemoryStore(root / "project")
+            store.ensure_project_layout()
+            store.save_meta(NovelMeta(title="旧书", world_rules=["旧规则"], style="轻松"))
+            meta_path = root / "meta.json"
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "title": "新书",
+                        "style": "严肃",
+                        "world_rules": ["新规则"],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "不能覆盖已有项目"):
+                open_or_create_project(store, meta_path=meta_path)
+
+            self.assertEqual(store.load_meta().title, "旧书")
 
 
 class ShortTermBufferTest(unittest.TestCase):
@@ -379,6 +510,61 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertIn("区分“写作任务”和“讨论任务”", system.content)
         self.assertIn("只有作者通过 /a 采纳的文本才视为正式正文", system.content)
 
+    def test_build_includes_non_empty_extended_meta_fields(self) -> None:
+        meta = NovelMeta(
+            title="书",
+            world_rules=[],
+            style="轻松",
+            pov="第一人称",
+            tense="现在时",
+            taboos=["不写血腥描写"],
+            target_audience="轻小说读者",
+            narrative_rules=["多用动作推进"],
+            genre="校园奇幻",
+            tone="温暖明快",
+        )
+        builder = PromptContextBuilder()
+
+        messages = builder.build(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="继续",
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertIn("叙述人称：第一人称", system.content)
+        self.assertIn("叙事时态：现在时", system.content)
+        self.assertIn("禁忌内容", system.content)
+        self.assertIn("不写血腥描写", system.content)
+        self.assertIn("目标读者：轻小说读者", system.content)
+        self.assertIn("叙事规则", system.content)
+        self.assertIn("多用动作推进", system.content)
+        self.assertIn("题材类型：校园奇幻", system.content)
+        self.assertIn("整体语气：温暖明快", system.content)
+
+    def test_build_skips_empty_extended_meta_fields(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        builder = PromptContextBuilder()
+
+        messages = builder.build(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="继续",
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertNotIn("叙述人称：", system.content)
+        self.assertNotIn("叙事时态：", system.content)
+        self.assertNotIn("禁忌内容", system.content)
+        self.assertNotIn("目标读者：", system.content)
+        self.assertNotIn("叙事规则", system.content)
+        self.assertNotIn("题材类型：", system.content)
+        self.assertNotIn("整体语气：", system.content)
+
     def test_build_trims_oldest_messages_by_context_config(self) -> None:
         meta = NovelMeta(title="书", world_rules=[], style="轻松")
         buffer = ShortTermBuffer(
@@ -521,6 +707,63 @@ class SynopsisStoreTest(unittest.TestCase):
         self.store.append_scene_text("scene_001", long_text)
         tail = self.store.read_scene_tail("scene_001")
         self.assertEqual(len(tail), 500)
+
+
+class ExportManuscriptTest(unittest.TestCase):
+    def test_export_manuscript_writes_scenes_in_number_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            store.rewrite_scene_manuscript("scene_002", "第二场。")
+            store.rewrite_scene_manuscript("scene_001", "第一场。")
+
+            output = export_manuscript(store, today=date(2026, 5, 27))
+
+            self.assertEqual(output, store.project_dir / "exports" / "2026-05-27.md")
+            self.assertEqual(
+                output.read_text(encoding="utf-8"),
+                "## Scene 001\n\n第一场。\n\n## Scene 002\n\n第二场。\n",
+            )
+
+    def test_export_manuscript_skips_empty_scenes_and_uses_unique_default_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            store.rewrite_scene_manuscript("scene_001", "")
+            store.rewrite_scene_manuscript("scene_002", "第二场。")
+            exports_dir = store.project_dir / "exports"
+            exports_dir.mkdir(parents=True)
+            (exports_dir / "2026-05-27.md").write_text("旧导出", encoding="utf-8")
+
+            output = export_manuscript(store, today=date(2026, 5, 27))
+
+            self.assertEqual(output, exports_dir / "2026-05-27-2.md")
+            self.assertEqual(
+                output.read_text(encoding="utf-8"),
+                "## Scene 002\n\n第二场。\n",
+            )
+
+    def test_export_manuscript_uses_explicit_project_relative_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            store.rewrite_scene_manuscript("scene_001", "第一场。")
+
+            output = export_manuscript(store, output_path=Path("drafts/book.md"))
+
+            self.assertEqual(output, store.project_dir / "drafts" / "book.md")
+            self.assertEqual(
+                output.read_text(encoding="utf-8"),
+                "## Scene 001\n\n第一场。\n",
+            )
+
+    def test_export_manuscript_raises_when_all_scenes_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+
+            with self.assertRaisesRegex(ValueError, "没有可导出的正文"):
+                export_manuscript(store, today=date(2026, 5, 27))
 
 
 class ColdArchiveExtractorTest(unittest.TestCase):
@@ -1107,6 +1350,19 @@ class CommandParserTest(unittest.TestCase):
 
         self.assertEqual(parsed.action, CommandAction.CONFIG)
         self.assertEqual(parsed.text, "set context.char_budget 500000")
+
+    def test_parse_export_command_with_optional_path(self) -> None:
+        self.assertEqual(parse_command("/export").action, CommandAction.EXPORT)
+        parsed = parse_command("/export drafts/book.md")
+
+        self.assertEqual(parsed.action, CommandAction.EXPORT)
+        self.assertEqual(parsed.text, "drafts/book.md")
+
+    def test_main_parse_args_accepts_meta_path(self) -> None:
+        parsed = parse_main_args(["--project", "demo", "--meta", "meta.json"])
+
+        self.assertEqual(parsed.project, "demo")
+        self.assertEqual(parsed.meta, "meta.json")
 
 
 class ConfigCommandTest(unittest.TestCase):
