@@ -6,4 +6,4 @@
 |------|------|------|
 | [memory-architecture.md](./memory-architecture.md) | 记忆架构：Hot/Cold、CLI 命令、决策记录 | 设计已定稿（MVP） |
 | [open-questions.md](./open-questions.md) | **待讨论项 backlog**，避免遗忘 | 持续维护 |
-| [memory-mvp-plan.md](./memory-mvp-plan.md) | **记忆分阶段实现计划**（Phase 0–5；Phase 6/7+ 规划） | Phase 0–4 已实现；Phase 5 待做 |
+| [memory-mvp-plan.md](./memory-mvp-plan.md) | **记忆分阶段实现计划**（Phase 0–6；Phase 7+ 规划） | Phase 0–6 已实现；Phase 7+ 规划中 |

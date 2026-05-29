@@ -24,9 +24,10 @@
 
 | 能力 | 原因 |
 |------|------|
-| `/u` undo、`/f` fix | 已实现于 **Phase 4** |
-| token 预算裁剪（T8） | 短篇先全量注入；作为 **Phase 5** |
 | 向量 RAG | 明确不做于 MVP；见 **Phase 7+** |
+| 文风 / 叙事模板 preset | Phase 6 非目标；见路线图 |
+| `--template` / 运行时改 meta | Phase 6 非目标 |
+| Hot Canon schema 演进（S2–S4） | 见 **Phase 7+** |
 
 ---
 
@@ -227,7 +228,7 @@ projects/<novel_id>/
 
 **验收**：
 
-- [ ] 长对话（如 10+ 轮）或多场景项目下 `send` 仍稳定；超预算时有确定行为（裁剪或明确报错），不 silent 丢块。（建议手工 spot-check）
+- [x] 长对话（如 10+ 轮）或多场景项目下 `send` 仍稳定；超预算时有确定行为（裁剪或明确报错），不 silent 丢块。（手工 spot-check 已通过，2026-05-29）
 - [x] 单元测试覆盖：各块独立超限、总预算超限、裁剪顺序、tail/Hot 保留优先级。
 - [x] `/sc` 建议在 beat 完成附近出现；正常续写时不过度打扰（规则可配置或文档化阈值）。
 - [x] System prompt 含讨论/写作边界说明；纯讨论轮次输出偏分析而非小说段落（单测覆盖边界文案；语气仍建议手工 spot-check）。
@@ -325,8 +326,11 @@ lnagent/
 │   ├── adopt.py            # Phase 2
 │   ├── scene.py            # Phase 3
 │   ├── undo.py             # Phase 4
-│   └── fix.py              # Phase 4
+│   ├── fix.py              # Phase 4
+│   ├── config.py           # Phase 5
+│   └── export.py           # Phase 6
 ├── session.py              # Phase 1
+├── project.py              # Phase 6（--meta 开书）
 ├── chat.py                 # 保留 LLMChatClient；NovelSession 新入口
 ├── config.py               # Phase 0 扩展
 └── llm.py                  # 不变
@@ -408,7 +412,7 @@ Phase 4（`/u`、`/f`）视为完成当：
 - [x] `/u` 撤销最后一次 adopt；正文 + Hot 回滚；`accepted_canon=false` 可撤；不动 `messages`
 - [x] `/f` 多行纠错意图 → patch diff → y/n；不改正文、不写 `adopt_stack`
 
-Phase 5（中篇可用，方向 A）核心任务已完成；验收项中手工 spot-check 项可继续迭代。
+Phase 5（中篇可用，方向 A）已完成（含长对话/多场景手工 spot-check，2026-05-29）。
 
 Phase 6 第一版（`/export`、`--meta`、扩展 meta 注入）已完成；Phase 7+ 为规划项，实现前再拆任务与验收。
 
@@ -425,3 +429,4 @@ Phase 6 第一版（`/export`、`--meta`、扩展 meta 注入）已完成；Phas
 | 2026-05-26 | 新增 Phase 5（方向 A：T8/C6/L7）及 Phase 6/7+ 路线规划 |
 | 2026-05-27 | Phase 6 第一版实现完成：`/export`、`--meta` JSON 开书、扩展 meta Prompt 注入 |
 | 2026-05-27 | Phase 5.5：`session.json` checkpoint_only 写盘策略实现 |
+| 2026-05-29 | Phase 5 手工验收通过；同步 §1.2、§4 模块清单与 DoD |

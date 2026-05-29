@@ -409,7 +409,7 @@ projects/<novel_id>/
 - `LLMChatClient`：单轮，无记忆（将被会话层替代或包装）。
 - `ChatSession`（预留）：应对齐为 `NovelSession`，组合 `ShortTermBuffer` + `MemoryStore` + `PromptContextBuilder`。
 
-**实现计划**见 [memory-mvp-plan.md](./memory-mvp-plan.md)（Phase 0–4 分阶段交付）。
+**实现计划**见 [memory-mvp-plan.md](./memory-mvp-plan.md)（Phase 0–6 已完成；Phase 7+ 规划中）。
 
 ## 10. 修订记录
 

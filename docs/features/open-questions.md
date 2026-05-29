@@ -19,11 +19,11 @@
 
 | ID | 状态 | 问题 | 背景 / 选项 |
 |----|------|------|-------------|
-| **L4** | 🔴 | **meta 哪些字段固定注入 System Prompt？** | 待定字段可能包括：书名、简介、世界规则、文风、人称、禁忌、目标篇幅等。需定义 `meta.json` schema 与注入模板。 |
+| **L4** | 🟢 | **meta 哪些字段固定注入 System Prompt？** | Phase 6：`title`、`world_rules`、`style` 及扩展字段（`pov`、`tense`、`taboos` 等）非空时注入。见 [memory-mvp-plan Phase 6](./memory-mvp-plan.md#phase-6工作流方向-b第一版)。 |
 | **L1** | 🟡 | **adopt / scene 各需几次 LLM 调用？** | adopt：续写 1 次 + Hot 抽取 1 次；scene：Cold 提案 1 次 + reconcile 1 次？实现阶段按成本与延迟优化，不阻塞架构。 |
-| **T8** | 🟡 | **上下文 token 预算如何分配？** | 各块上限（Hot Canon / 已确认摘要 / 当前场景 / tail）依赖**模型上下文窗口**与实测。MVP 可先全量注入短篇体量，超窗后再裁剪。 |
+| **T8** | 🟢 | **上下文 token 预算如何分配？** | Phase 5：按**字符**分块上限 + 总预算裁剪；`/config` 可配。见 [memory-mvp-plan Phase 5](./memory-mvp-plan.md#phase-5中篇可用方向-a)。 |
 | **L6** | 🟢 | **Hot / Cold 抽取用的结构化输出 schema** | Hot：JSON patch（Phase 2）。Cold：`synopsis.json` 见 [memory-mvp-plan Phase 3](./memory-mvp-plan.md#phase-3场景切换与-cold-archive记忆闭环)。 |
-| **L7** | 🔴 | **System Prompt 中「写作任务」与「讨论任务」是否区分** | L5 已允许纯讨论；是否在 system 中提示「讨论输出非正文，勿直接 adopt」？ |
+| **L7** | 🟢 | **System Prompt 中「写作任务」与「讨论任务」是否区分** | Phase 5：仅在 system 中加边界说明（讨论输出非正文，勿直接 adopt）；不新增讨论模式命令。 |
 
 ---
 
@@ -36,7 +36,7 @@
 | **S2** | 🔴 | **能力字段粒度** | 结构化等级（如「剑术 Lv3」）vs 自然语言；是否带 timestamp / source_scene？ |
 | **S3** | 🔴 | **世界观 rules 是否按地点/势力拆分** | MVP 仅 `world.rules[]` 全局列表，还是预留 `world.locations`？ |
 | **S4** | 🔴 | **伏笔 plot_threads 完整字段** | 待定：`id`、`status`、`introduced_in`、`closed_in`、`note` 等。 |
-| **C6** | 🟡 | **场景切换启发式具体规则** | 已确认用启发式建议 `/sc`，规则待定。候选：已 adopt 段落数阈值、Agent 回复含完成信号词、作者连续多轮无 adopt 等。MVP 可先做简单规则或仅 system prompt 提示。 |
+| **C6** | 🟢 | **场景切换启发式具体规则** | Phase 5：`adopt_stack` 次数 ≥ 2 **或** 连续 M 轮无 `/a`（默认 M=3）；仅建议，不自动 `/sc`。`/config` 可调阈值。 |
 
 ---
 
@@ -55,10 +55,10 @@
 
 | ID | 状态 | 问题 | 背景 / 选项 |
 |----|------|------|-------------|
-| **P3** | 🔴 | **MVP 是否支持 manuscript 合并导出？** | 如 `export.md` 合并所有 scene；非阻塞 MVP。 |
-| **P4** | 🔴 | **projects 根路径是否可配置** | 环境变量 `LNAGENT_PROJECTS_DIR` vs 固定 `./projects`？ |
+| **P3** | 🟢 | **MVP 是否支持 manuscript 合并导出？** | Phase 6：`/export [output_path]`；默认 `exports/YYYY-MM-DD.md`。 |
+| **P4** | 🟡 | **projects 根路径是否可配置** | 已实现 `LNAGENT_PROJECTS_DIR` 环境变量；CLI 参数暴露暂不做（Phase 6 非目标）。 |
 | **P5** | 🟢 | **`session.json` 持久化粒度** | **checkpoint_only**（Phase 5.5）：`send()` 不写盘；adopt / undo / fix / reconcile / `/sc` / 退出时写盘。纯讨论轮次异常退出可丢 `messages`；candidate 仍不恢复（P2）。见 [memory-mvp-plan Phase 5.5](./memory-mvp-plan.md#phase-5中篇可用方向-a)。 |
-| **P6** | 🔴 | **开书 meta 采集交互** | 交互式问答逐字段 vs 一次粘贴 vs 模板文件；`meta.json` 最小必填字段列表。 |
+| **P6** | 🟡 | **开书 meta 采集交互** | Phase 6 第一版：`--meta <path>` JSON 初始化；交互式问答与模板开书暂不做。 |
 | **E3** | 🟢 | **正文与 Hot 不一致时的 reconcile** | 不自动重抽；`/sc` 时**逐条** reconcile `adopt_stack` 中 `accepted_canon=false`；口头纠错走 `/f`。 |
 
 ---
@@ -97,7 +97,29 @@
 
 ---
 
-## 8. 修订记录
+## 8. Phase 5 已决议（2026-05-27，手工验收 2026-05-29）
+
+| 议题 | 决议 |
+|------|------|
+| T8 计量与裁剪 | 字符预算；各块独立上限 + 总预算；超限时 CLI 提示，不 silent 丢块 |
+| T8 配置 | `/config` 修改 `config.json`，立即生效 |
+| C6 规则 | `adopt_stack ≥ 2` 或连续 M 轮无 `/a`（默认 3）；仅建议 |
+| L7 边界 | system 中说明讨论输出非正文；无讨论模式命令 |
+| P5 写盘 | `checkpoint_only`：`send()` 不写 `session.json` |
+
+---
+
+## 9. Phase 6 已决议（2026-05-27）
+
+| 议题 | 决议 |
+|------|------|
+| P3 导出 | `/export`；按 `scene_XXX` 升序合并；`## Scene NNN` 分隔 |
+| P6 开书 | 新 project 支持 `--meta <path>` JSON；已有 project 传入则报错 |
+| L4 扩展 meta | `pov`、`tense`、`taboos` 等扩展字段非空时注入 Prompt |
+
+---
+
+## 10. 修订记录
 
 | 日期 | 说明 |
 |------|------|
@@ -106,3 +128,4 @@
 | 2026-05-25 | Phase 3：S5/S6/L6 Cold、X1/X3、E3 等标 🟢；新增 §6 决议摘要 |
 | 2026-05-26 | Phase 4：X2 标 🟢；新增 §7 决议摘要（`/f` 输入与 patch、`/u` 边界） |
 | 2026-05-27 | Phase 5.5：P5 标 🟢，checkpoint_only session 写盘策略 |
+| 2026-05-29 | Phase 5/6 决议同步：L4、T8、L7、C6、P3 标 🟢；P4/P6 标 🟡；新增 §8–§9 |
