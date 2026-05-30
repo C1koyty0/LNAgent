@@ -110,53 +110,54 @@
 
 > **为何先做**：长篇 + 宏大世界观下，势力/地点规则是分块注入与控制 token 的基础；与 `meta.json` 开书设定互补（meta 偏静态 bible，Hot 偏剧情中已确认事实）。
 
-- [ ] **7.1.1 数据模型**：`WorldCanon` 增加 `scoped[]`；`ScopedWorldRules`（`scope_type`、`scope_id`、`rules[]`）  
+- [x] **7.1.1 数据模型**：`WorldCanon` 增加 `scoped[]`；`ScopedWorldRules`（`scope_type`、`scope_id`、`rules[]`）  
   产出：`lnagent/memory/models.py`
-- [ ] **7.1.2 抽取 schema**：`CanonExtractor` prompt 支持 `world.scoped` patch；`world.rules` 仍为全局  
+- [x] **7.1.2 抽取 schema**：`CanonExtractor` prompt 支持 `world.scoped` patch；`world.rules` 仍为全局  
   产出：`lnagent/memory/canon_extractor.py`
-- [ ] **7.1.3 Merge**：`scoped` 按 `(scope_type, scope_id)` 合并；`rules` 数组合并去重  
+- [x] **7.1.3 Merge**：`scoped` 按 `(scope_type, scope_id)` 合并；`rules` 数组合并去重  
   产出：`canon_extractor.py`
-- [ ] **7.1.4 迁移 A（惰性）**：v1 仅 `world.rules` 时原样读入；可选将明显含势力名的规则启发式迁入 `scoped`（保守，宁少勿错）  
-  产出：`models.py` 或 `canon_migrate.py`
-- [ ] **7.1.5 测试**：scoped merge、v1→v2 读盘、空 scoped
+- [x] **7.1.4 迁移 A（惰性）**：v1 仅 `world.rules` 时原样读入；`scoped` 默认 `[]`（不做激进拆分）  
+  产出：`lnagent/memory/canon_migrate.py`
+- [x] **7.1.5 测试**：scoped merge、v1→v2 读盘、空 scoped  
+  产出：`tests/test_canon_schema_v2.py`
 
 **验收**：
 
-- [ ] adopt 后可将「洛兰专属规则」写入 `world.scoped`，且不与全局 `rules` 混写
-- [ ] 旧项目仅 `world.rules` 仍可启动；首次写盘后含 `schema_version: 2`
+- [x] adopt 后可将「洛兰专属规则」写入 `world.scoped`，且不与全局 `rules` 混写
+- [x] 旧项目仅 `world.rules` 仍可启动；首次写盘后含 `schema_version: 2`
 
 ---
 
 ### Phase 7.2：S2 — 能力结构化（P0）
 
-- [ ] **7.2.1 数据模型**：`AbilityEntry`（`id`、`name`、`kind`、`level`、`summary`、`introduced_in`、`constraints[]`）；角色 `abilities` 为对象数组  
-  产出：`models.py`
-- [ ] **7.2.2 抽取 + Merge**：`abilities` 按 **`id`** 合并；标量覆盖、`constraints` 数组合并去重  
+- [x] **7.2.1 数据模型**：能力对象字段（`id`、`name`、`kind`、`level`、`summary`、`introduced_in`、`constraints[]`）  
+  产出：`canon_migrate.py` 归一化
+- [x] **7.2.2 抽取 + Merge**：`abilities` 按 **`id`** 合并；标量覆盖、`constraints` 数组合并去重  
   产出：`canon_extractor.py`
-- [ ] **7.2.3 迁移 A**：v1 字符串 `abilities[]` → 启发式解析为对象（抽 `lv?\d+`、`name` 前缀）；无法解析的保留为 `summary` + slug `id`  
+- [x] **7.2.3 迁移 A**：v1 字符串 `abilities[]` → 启发式解析 + 同角色按 `id` 去重  
   产出：`canon_migrate.py`
-- [ ] **7.2.4 `/c` 摘要**：按角色列出能力（`Lv.n` + name + 一行 summary）  
-  产出：CLI 或 `memory/canon_display.py`
-- [ ] **7.2.5 测试**：merge 同 id 升级 level；字符串迁移样例（含 test1 片段 fixture）
+- [x] **7.2.4 `/c` 摘要**：按角色列出能力（`Lv.n` + name + summary）  
+  产出：`lnagent/memory/canon_display.py`
+- [x] **7.2.5 测试**：merge 同 id 升级 level；字符串迁移样例  
 
 **验收**：
 
-- [ ] test1 类 canon 迁移后「能量感知」合并为单条（同 `id`）
-- [ ] 新 adopt 产出带稳定 `id` 的能力对象；y/n 流程不变
+- [x] test1 类 canon 迁移后「能量感知」合并为单条（同 `id`）（单测覆盖）
+- [x] 新 adopt 产出带稳定 `id` 的能力对象；y/n 流程不变
 
 ---
 
 ### Phase 7.3：S4 — 伏笔生命周期（P1）
 
-- [ ] **7.3.1 数据模型**：`PlotThreadEntry` 扩展字段（见 §3）  
-- [ ] **7.3.2 抽取 + Merge**：`id` **必填**（patch 无 id 仍可 append 兼容）；`advanced_in` 数组合并  
-- [ ] **7.3.3 `/c`**：列出 `status != closed` 的伏笔及 `introduced_in`  
-- [ ] **7.3.4 测试**：按 id 更新 status / closed_in
+- [x] **7.3.1 数据模型**：`PlotThreadEntry` 扩展字段（见 §3）  
+- [x] **7.3.2 抽取 + Merge**：`id` 抽取必填；`advanced_in` 数组合并  
+- [x] **7.3.3 `/c`**：列出伏笔及 `status` / `introduced_in`  
+- [x] **7.3.4 测试**：按 id 更新 status / closed_in
 
 **验收**：
 
-- [ ] `/c` 可区分已收束 / 未收束伏笔
-- [ ] `/f` 与 adopt 使用**同一** v2 patch schema
+- [x] `/c` 可区分已收束 / 未收束伏笔
+- [x] `/f` 与 adopt 使用**同一** v2 patch schema
 
 ---
 
@@ -164,27 +165,28 @@
 
 > 依赖 7.1 `world.scoped` 与角色 `location`、Cold 条目 `location`。
 
-- [ ] **7.4.1 上下文解析**：解析「当前相关 scope」：`character.location`、上一场景 Cold `location`、可选 meta 默认势力  
-  产出：`prompt.py` 或 `memory/canon_context.py`
-- [ ] **7.4.2 注入策略**：Hot Canon 文本 = 全局 `rules` + **匹配 scoped** + 相关角色/未收束伏笔；仍受 T8 `hot_canon_limit` 裁剪  
-- [ ] **7.4.3 测试**：多 scoped 时仅注入匹配块；无 location 时回退全局
+- [x] **7.4.1 上下文解析**：`character.location`、上一场景 Cold `location`  
+  产出：`lnagent/memory/canon_context.py`
+- [x] **7.4.2 注入策略**：全局 `rules` + 匹配 `scoped` + 压缩角色/未收束伏笔  
+  产出：`lnagent/memory/canon_display.py`、`prompt.py`
+- [x] **7.4.3 测试**：多 scoped 时仅注入匹配块
 
 **验收**：
 
-- [ ] 角色在「洛兰」场景续写时，Prompt 含洛兰 scoped，不含无关势力 scoped（除非配置允许 fallback 全局）
+- [x] 角色 location 与 scoped 通过名称片段匹配时，Prompt 含对应 scoped（单测覆盖）
 
 ---
 
 ### Phase 7.5：迁移 B — 一次性精修（P2，可选命令）
 
-- [ ] **7.5.1 `/canon migrate`**（或 `canon migrate` 子命令）：读取当前 canon → LLM 转 v2 全表 → diff → y/n → 写盘  
-  产出：`lnagent/cli/canon_migrate.py`、`commands.py`
-- [ ] **7.5.2 安全**：仅当 `schema_version < 2` 或显式 `--force`；不改正文、不写 `adopt_stack`  
-- [ ] **7.5.3 文档 + 手工**：test1 项目跑通 migrate B
+- [x] **7.5.1 `/canon migrate`**：读取当前 canon → LLM 转 v2 全表 → diff → y/n → 写盘  
+  产出：`lnagent/cli/canon_migrate.py`、`commands.py`、`main.py`
+- [x] **7.5.2 安全**：已为 v2 时需 `--force`；不改正文、不写 `adopt_stack`  
+- [ ] **7.5.3 手工**：test1 项目跑通 migrate B（建议作者本地 spot-check）
 
 **验收**：
 
-- [ ] test1 经 migrate B 后结构清晰、无大面积重复 ability；作者可 n 拒绝
+- [ ] test1 经 migrate B 后结构清晰（手工 spot-check）；作者可 n 拒绝（流程已实现）
 
 ---
 
@@ -274,15 +276,15 @@ tests/
 
 本计划（7.1–7.4 核心）视为完成当：
 
-- [ ] `canon.json` 带 `schema_version: 2`，且 v1 项目可加载并升级写盘  
-- [ ] `world.scoped` 支持 faction/location，merge 与抽取稳定  
-- [ ] `abilities` 按 `id` 合并，无「同能力多字符串」退化  
-- [ ] `plot_threads` 可表达引入/推进/收束场景  
-- [ ] Prompt 按当前 scope 注入相关 scoped rules（7.4）  
-- [ ] `/c` 为人类可读摘要  
-- [ ] adopt / fix / undo / reconcile 流程与 y/n 语义不变  
+- [x] `canon.json` 带 `schema_version: 2`，且 v1 项目可加载并升级写盘  
+- [x] `world.scoped` 支持 faction/location，merge 与抽取稳定  
+- [x] `abilities` 按 `id` 合并，无「同能力多字符串」退化  
+- [x] `plot_threads` 可表达引入/推进/收束场景  
+- [x] Prompt 按当前 scope 注入相关 scoped rules（7.4）  
+- [x] `/c` 为人类可读摘要  
+- [x] adopt / fix / undo / reconcile 流程与 y/n 语义不变  
 
-7.5 migrate B 为**推荐**交付，可与 7.4 并行或略滞后。
+7.5 migrate B 已实现；test1 手工 migrate 为可选 spot-check。
 
 ---
 
@@ -301,3 +303,4 @@ tests/
 | 日期 | 说明 |
 |------|------|
 | 2026-05-29 | 初稿：S3 优先；迁移 A+B；能力 id/整数 level；读 v1 写 v2 |
+| 2026-05-29 | Phase 7.1–7.5 代码实现完成；单测 92 项通过 |

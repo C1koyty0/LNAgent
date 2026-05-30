@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from enum import Enum
 
+from lnagent.memory.canon_display import format_canon_summary as _format_canon_summary
 from lnagent.memory.models import HotCanon
 
 
 class CommandAction(str, Enum):
     ADOPT = "adopt"
     CANON = "canon"
+    CANON_MIGRATE = "canon_migrate"
     SCENE = "scene"
     UNDO = "undo"
     FIX = "fix"
@@ -31,6 +32,7 @@ HELP_TEXT = """\
 可用命令:
   /a, /adopt    采纳上一轮候选正文，并确认 Hot Canon 变更
   /c, /canon    查看当前 Hot Canon
+  /canon migrate  将 Hot Canon 迁移到 schema v2（LLM 精修，y/n 确认）
   /sc, /scene   结束当前场景（须至少一次 /a）；Cold 摘要 review
   /u, /undo     撤销最后一次 adopt（正文 + Hot 一并回滚）
   /f, /fix      设定纠错（多行 + EOF 输入意图），仅改 Hot Canon
@@ -46,6 +48,7 @@ _COMMAND_ALIASES = {
     "/adopt": CommandAction.ADOPT,
     "/c": CommandAction.CANON,
     "/canon": CommandAction.CANON,
+    "/canon migrate": CommandAction.CANON_MIGRATE,
     "/h": CommandAction.HELP,
     "/help": CommandAction.HELP,
     "/sc": CommandAction.SCENE,
@@ -64,15 +67,19 @@ def parse_command(text: str) -> ParsedCommand:
     if not stripped:
         return ParsedCommand(action=CommandAction.MESSAGE, text="")
 
+    lowered = stripped.lower()
+    if lowered == "/canon migrate" or lowered.startswith("/canon migrate "):
+        rest = stripped[len("/canon migrate") :].strip()
+        return ParsedCommand(action=CommandAction.CANON_MIGRATE, text=rest)
+
     first, _, rest = stripped.partition(" ")
     action = _COMMAND_ALIASES.get(first.lower())
     if action is not None:
+        if action == CommandAction.CANON and rest.lower() == "migrate":
+            return ParsedCommand(action=CommandAction.CANON_MIGRATE, text="")
         return ParsedCommand(action=action, text=rest.strip())
     return ParsedCommand(action=CommandAction.MESSAGE, text=stripped)
 
 
 def format_canon_summary(canon: HotCanon) -> str:
-    data = canon.to_dict()
-    if not data["characters"] and not data["world"]["rules"] and not data["plot_threads"]:
-        return "Hot Canon 为空。"
-    return json.dumps(data, ensure_ascii=False, indent=2)
+    return _format_canon_summary(canon)

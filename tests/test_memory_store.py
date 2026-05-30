@@ -927,7 +927,11 @@ class NovelSessionTest(unittest.TestCase):
             reply = session.send("继续写")
 
             self.assertEqual(reply, "模型回复")
-            self.assertEqual(prompt_builder.seen_canon, canon)
+            self.assertIsNotNone(prompt_builder.seen_canon)
+            seen = prompt_builder.seen_canon
+            assert seen is not None
+            self.assertEqual(seen.characters[0]["name"], "莉亚")
+            self.assertEqual(seen.characters[0]["abilities"][0]["id"], "影步")
 
     def test_send_passes_project_context_config_to_prompt_builder(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1022,7 +1026,8 @@ class NovelSessionTest(unittest.TestCase):
                 ),
                 "莉亚学会了影步。\n",
             )
-            self.assertEqual(store.load_canon().characters[0]["abilities"], ["影步"])
+            abilities = store.load_canon().characters[0]["abilities"]
+            self.assertEqual(abilities[0]["id"], "影步")
             loaded = store.load_session()
             self.assertEqual(loaded.adopted_prose, "莉亚学会了影步。\n")
             self.assertEqual(len(loaded.adopt_stack), 1)
@@ -1075,7 +1080,10 @@ class NovelSessionTest(unittest.TestCase):
             items = session.pending_reconcile_items()
             self.assertEqual(len(items), 1)
             session.apply_reconcile(items[0], accepted_canon=True)
-            self.assertEqual(store.load_canon().characters[0]["abilities"], ["影步"])
+            self.assertEqual(
+                store.load_canon().characters[0]["abilities"][0]["id"],
+                "影步",
+            )
             self.assertTrue(store.load_session().adopt_stack[0].accepted_canon)
 
     def test_finish_scene_switch_accept_writes_synopsis_and_advances_scene(self) -> None:
@@ -1354,7 +1362,17 @@ class HotCanonMergeTest(unittest.TestCase):
             characters=[
                 {
                     "name": "莉亚",
-                    "abilities": ["影步"],
+                    "abilities": [
+                        {
+                            "id": "shadow_step",
+                            "name": "影步",
+                            "kind": "skill",
+                            "level": 1,
+                            "summary": "影步",
+                            "introduced_in": "",
+                            "constraints": [],
+                        }
+                    ],
                     "status": "疲惫",
                     "relationships": {"悠真": "同伴"},
                     "inventory": ["银钥匙"],
@@ -1362,13 +1380,44 @@ class HotCanonMergeTest(unittest.TestCase):
                 }
             ],
             world=WorldCanon(rules=["暗属性魔法会侵蚀记忆"]),
-            plot_threads=[{"id": "seal", "status": "open", "note": "钟楼封印"}],
+            plot_threads=[
+                {
+                    "id": "seal",
+                    "title": "封印",
+                    "status": "open",
+                    "introduced_in": "scene_001",
+                    "advanced_in": [],
+                    "closed_in": "",
+                    "related_characters": [],
+                    "priority": "main",
+                    "note": "钟楼封印",
+                }
+            ],
         )
         patch = HotCanon(
             characters=[
                 {
                     "name": "莉亚",
-                    "abilities": ["影步", "瞬移"],
+                    "abilities": [
+                        {
+                            "id": "shadow_step",
+                            "name": "影步",
+                            "kind": "skill",
+                            "level": 1,
+                            "summary": "影步",
+                            "introduced_in": "",
+                            "constraints": [],
+                        },
+                        {
+                            "id": "blink",
+                            "name": "瞬移",
+                            "kind": "skill",
+                            "level": 1,
+                            "summary": "瞬移",
+                            "introduced_in": "",
+                            "constraints": [],
+                        },
+                    ],
                     "status": "左臂受伤",
                     "relationships": {"米娜": "老师"},
                     "inventory": ["银钥匙", "黑羽"],
@@ -1382,7 +1431,8 @@ class HotCanonMergeTest(unittest.TestCase):
         merged = merge_hot_canon(base, patch)
 
         character = merged.characters[0]
-        self.assertEqual(character["abilities"], ["影步", "瞬移"])
+        ability_ids = {item["id"] for item in character["abilities"]}
+        self.assertEqual(ability_ids, {"shadow_step", "blink"})
         self.assertEqual(character["status"], "左臂受伤")
         self.assertEqual(character["relationships"], {"悠真": "同伴", "米娜": "老师"})
         self.assertEqual(character["inventory"], ["银钥匙", "黑羽"])
@@ -1391,10 +1441,8 @@ class HotCanonMergeTest(unittest.TestCase):
             merged.world.rules,
             ["暗属性魔法会侵蚀记忆", "钟声会削弱封印"],
         )
-        self.assertEqual(
-            merged.plot_threads[0],
-            {"id": "seal", "status": "advanced", "note": "钟楼封印"},
-        )
+        self.assertEqual(merged.plot_threads[0]["status"], "advanced")
+        self.assertEqual(merged.plot_threads[0]["note"], "钟楼封印")
 
 
 class CommandParserTest(unittest.TestCase):
@@ -1403,6 +1451,14 @@ class CommandParserTest(unittest.TestCase):
         self.assertEqual(parse_command("/adopt").action, CommandAction.ADOPT)
         self.assertEqual(parse_command("/c").action, CommandAction.CANON)
         self.assertEqual(parse_command("/canon").action, CommandAction.CANON)
+        self.assertEqual(
+            parse_command("/canon migrate").action,
+            CommandAction.CANON_MIGRATE,
+        )
+        self.assertEqual(
+            parse_command("/c migrate").action,
+            CommandAction.CANON_MIGRATE,
+        )
         self.assertEqual(parse_command("/h").action, CommandAction.HELP)
         self.assertEqual(parse_command("/help").action, CommandAction.HELP)
         self.assertEqual(parse_command("/sc").action, CommandAction.SCENE)

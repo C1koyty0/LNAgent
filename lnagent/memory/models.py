@@ -74,16 +74,55 @@ class NovelMeta:
 
 
 @dataclass
-class WorldCanon:
+class ScopedWorldRules:
+    scope_type: str
+    scope_id: str
     rules: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"rules": self.rules}
+        return {
+            "scope_type": self.scope_type,
+            "scope_id": self.scope_id,
+            "rules": self.rules,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ScopedWorldRules:
+        rules = data.get("rules", [])
+        scope_type = str(data.get("scope_type", "")).strip()
+        if scope_type not in {"faction", "location"}:
+            scope_type = "location"
+        return cls(
+            scope_type=scope_type,
+            scope_id=str(data.get("scope_id", "")),
+            rules=[str(rule) for rule in rules] if isinstance(rules, list) else [],
+        )
+
+
+@dataclass
+class WorldCanon:
+    rules: list[str] = field(default_factory=list)
+    scoped: list[ScopedWorldRules] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "rules": self.rules,
+            "scoped": [entry.to_dict() for entry in self.scoped],
+        }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WorldCanon:
         rules = data.get("rules", [])
-        return cls(rules=[str(r) for r in rules])
+        raw_scoped = data.get("scoped", [])
+        scoped = [
+            ScopedWorldRules.from_dict(entry)
+            for entry in raw_scoped
+            if isinstance(entry, dict)
+        ]
+        return cls(
+            rules=[str(rule) for rule in rules] if isinstance(rules, list) else [],
+            scoped=scoped,
+        )
 
 
 @dataclass
@@ -91,9 +130,11 @@ class HotCanon:
     characters: list[dict[str, Any]] = field(default_factory=list)
     world: WorldCanon = field(default_factory=WorldCanon)
     plot_threads: list[dict[str, Any]] = field(default_factory=list)
+    schema_version: int = 2
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": self.schema_version,
             "characters": self.characters,
             "world": self.world.to_dict(),
             "plot_threads": self.plot_threads,
@@ -101,16 +142,22 @@ class HotCanon:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> HotCanon:
-        world_data = data.get("world", {})
+        from lnagent.memory.canon_migrate import CANON_SCHEMA_VERSION, upgrade_canon_dict
+
+        upgraded = upgrade_canon_dict(data if isinstance(data, dict) else {})
+        world_data = upgraded.get("world", {})
         return cls(
-            characters=list(data.get("characters", [])),
-            world=WorldCanon.from_dict(world_data if isinstance(world_data, dict) else {}),
-            plot_threads=list(data.get("plot_threads", [])),
+            schema_version=int(upgraded.get("schema_version", CANON_SCHEMA_VERSION)),
+            characters=list(upgraded.get("characters", [])),
+            world=WorldCanon.from_dict(
+                world_data if isinstance(world_data, dict) else {}
+            ),
+            plot_threads=list(upgraded.get("plot_threads", [])),
         )
 
     @classmethod
     def empty(cls) -> HotCanon:
-        return cls()
+        return cls(schema_version=2, world=WorldCanon(rules=[], scoped=[]))
 
 
 @dataclass

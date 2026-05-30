@@ -12,6 +12,8 @@ from lnagent.memory.context_budget import (
     clip_tail,
     trim_oldest_messages,
 )
+from lnagent.memory.canon_context import resolve_active_scopes
+from lnagent.memory.canon_display import format_hot_canon_for_prompt
 from lnagent.memory.models import ContextConfig, HotCanon, NovelMeta, SceneSynopsisEntry
 from lnagent.memory.short_term import ShortTermBuffer
 
@@ -82,8 +84,12 @@ class PromptContextBuilder:
             report,
             "prior_scene_cold",
         )
+        active_scopes = resolve_active_scopes(
+            canon,
+            prior_scene_entry=prior_scene_cold,
+        )
         canon_text = clip_head(
-            _format_hot_canon(canon) or "",
+            format_hot_canon_for_prompt(canon, active_scopes=active_scopes) or "",
             config.hot_canon_limit,
             report,
             "hot_canon",
@@ -261,13 +267,3 @@ def _estimate_prompt_chars(
     return system_chars + history_chars + len(user_input)
 
 
-def _format_hot_canon(canon: HotCanon) -> str | None:
-    data = canon.to_dict()
-    if not data["characters"] and not data["world"]["rules"] and not data["plot_threads"]:
-        return None
-
-    return "Hot Canon（已确认设定）：\n" + json.dumps(
-        data,
-        ensure_ascii=False,
-        indent=2,
-    )
