@@ -33,9 +33,9 @@
 |----|------|------|-------------|
 | **S6** | 🟢 | **场景元数据（location / time）** | `/sc` Cold 提案时 LLM 抽取；作者 review **仅改 summary**，`location`/`time` 以提案为准。POV 暂不单独字段。 |
 | **S5** | 🟢 | **全书梗概（global synopsis）何时 rollup？** | **每次 Cold accept 写入 `scenes[]` 后**，LLM 自动更新 `synopsis.global`。 |
-| **S2** | 🔴 | **能力字段粒度** | 结构化等级（如「剑术 Lv3」）vs 自然语言；是否带 timestamp / source_scene？ |
-| **S3** | 🔴 | **世界观 rules 是否按地点/势力拆分** | MVP 仅 `world.rules[]` 全局列表，还是预留 `world.locations`？ |
-| **S4** | 🔴 | **伏笔 plot_threads 完整字段** | 待定：`id`、`status`、`introduced_in`、`closed_in`、`note` 等。 |
+| **S2** | 🟡 | **能力字段粒度** | 计划已定：对象 + `id` 合并、`level` 整数；见 [canon-schema-evolution-plan](./canon-schema-evolution-plan.md) Phase 7.2。 |
+| **S3** | 🟡 | **世界观 rules 是否按地点/势力拆分** | 计划已定：**优先实现** `world.scoped[]`（`faction`/`location`）；见 Phase 7.1。 |
+| **S4** | 🟡 | **伏笔 plot_threads 完整字段** | 计划已定：`introduced_in`、`advanced_in`、`closed_in` 等；见 Phase 7.3。 |
 | **C6** | 🟢 | **场景切换启发式具体规则** | Phase 5：`adopt_stack` 次数 ≥ 2 **或** 连续 M 轮无 `/a`（默认 M=3）；仅建议，不自动 `/sc`。`/config` 可调阈值。 |
 
 ---
@@ -129,3 +129,4 @@
 | 2026-05-26 | Phase 4：X2 标 🟢；新增 §7 决议摘要（`/f` 输入与 patch、`/u` 边界） |
 | 2026-05-27 | Phase 5.5：P5 标 🟢，checkpoint_only session 写盘策略 |
 | 2026-05-29 | Phase 5/6 决议同步：L4、T8、L7、C6、P3 标 🟢；P4/P6 标 🟡；新增 §8–§9 |
+| 2026-05-29 | S2–S4 链出 canon-schema-evolution-plan；S3 优先、迁移 A+B |

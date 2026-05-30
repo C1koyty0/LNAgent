@@ -294,11 +294,12 @@ projects/<novel_id>/
 
 ### Phase 7+：扩展架构（方向 C，规划）
 
-> **目标**：长篇与检索；改动面大，**不与 Phase 5/6 混排**。
+> **目标**：长篇与检索；改动面大，**不与 Phase 5/6 混排**。  
+> **Hot Canon schema 演进**已拆独立计划：[canon-schema-evolution-plan.md](./canon-schema-evolution-plan.md)（实施顺序 **S3 → S2 → S4**，迁移 A+B）。
 
-| 优先级 | 能力 | open-questions |
-|--------|------|----------------|
-| P0 | S2–S4 Hot Canon schema 演进 | S2, S3, S4 |
+| 优先级 | 能力 | 文档 / open-questions |
+|--------|------|------------------------|
+| P0 | S3 → S2 → S4 Hot Canon schema v2 | [canon-schema-evolution-plan.md](./canon-schema-evolution-plan.md) |
 | P1 | R1 向量 RAG（`MemoryRetriever`） | R1 |
 | P2 | R3 分卷 / 章节结构 | R3 |
 | P3 | R2 LangGraph / LangMem 接入边界 | R2 |
@@ -430,3 +431,4 @@ Phase 6 第一版（`/export`、`--meta`、扩展 meta 注入）已完成；Phas
 | 2026-05-27 | Phase 6 第一版实现完成：`/export`、`--meta` JSON 开书、扩展 meta Prompt 注入 |
 | 2026-05-27 | Phase 5.5：`session.json` checkpoint_only 写盘策略实现 |
 | 2026-05-29 | Phase 5 手工验收通过；同步 §1.2、§4 模块清单与 DoD |
+| 2026-05-29 | Phase 7+ 链出 canon-schema-evolution-plan（S3 优先） |
