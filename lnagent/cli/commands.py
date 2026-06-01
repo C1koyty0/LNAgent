@@ -13,6 +13,8 @@ class CommandAction(str, Enum):
     ADOPT = "adopt"
     CANON = "canon"
     CANON_MIGRATE = "canon_migrate"
+    META = "meta"
+    META_MIGRATE = "meta_migrate"
     SCENE = "scene"
     UNDO = "undo"
     FIX = "fix"
@@ -33,6 +35,8 @@ HELP_TEXT = """\
   /a, /adopt    采纳上一轮候选正文，并确认 Hot Canon 变更
   /c, /canon    查看当前 Hot Canon
   /canon migrate  将 Hot Canon 迁移到 schema v2（LLM 精修，y/n 确认）
+  /meta           查看开书设定 meta（schema v2）
+  /meta migrate   将 meta 迁移到 schema v2（LLM 精修，y/n 确认）
   /sc, /scene   结束当前场景（须至少一次 /a）；Cold 摘要 review
   /u, /undo     撤销最后一次 adopt（正文 + Hot 一并回滚）
   /f, /fix      设定纠错（多行 + EOF 输入意图），仅改 Hot Canon
@@ -71,6 +75,11 @@ def parse_command(text: str) -> ParsedCommand:
     if lowered == "/canon migrate" or lowered.startswith("/canon migrate "):
         rest = stripped[len("/canon migrate") :].strip()
         return ParsedCommand(action=CommandAction.CANON_MIGRATE, text=rest)
+    if lowered == "/meta migrate" or lowered.startswith("/meta migrate "):
+        rest = stripped[len("/meta migrate") :].strip()
+        return ParsedCommand(action=CommandAction.META_MIGRATE, text=rest)
+    if lowered == "/meta":
+        return ParsedCommand(action=CommandAction.META, text="")
 
     first, _, rest = stripped.partition(" ")
     action = _COMMAND_ALIASES.get(first.lower())

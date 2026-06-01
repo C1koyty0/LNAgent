@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from typing import Any
 
 _SCENE_ID_PATTERN = re.compile(r"^scene_(\d+)$")
@@ -21,56 +21,6 @@ class ChatMessage:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ChatMessage:
         return cls(role=str(data["role"]), content=str(data["content"]))
-
-
-@dataclass
-class NovelMeta:
-    title: str
-    world_rules: list[str]
-    style: str
-    pov: str = ""
-    tense: str = ""
-    taboos: list[str] = field(default_factory=list)
-    target_audience: str = ""
-    narrative_rules: list[str] = field(default_factory=list)
-    genre: str = ""
-    tone: str = ""
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "title": self.title,
-            "world_rules": self.world_rules,
-            "style": self.style,
-            "pov": self.pov,
-            "tense": self.tense,
-            "taboos": self.taboos,
-            "target_audience": self.target_audience,
-            "narrative_rules": self.narrative_rules,
-            "genre": self.genre,
-            "tone": self.tone,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> NovelMeta:
-        rules = data.get("world_rules", [])
-        taboos = data.get("taboos", [])
-        narrative_rules = data.get("narrative_rules", [])
-        return cls(
-            title=str(data["title"]),
-            world_rules=[str(r) for r in rules],
-            style=str(data["style"]),
-            pov=str(data.get("pov", "")),
-            tense=str(data.get("tense", "")),
-            taboos=[str(r) for r in taboos] if isinstance(taboos, list) else [],
-            target_audience=str(data.get("target_audience", "")),
-            narrative_rules=(
-                [str(r) for r in narrative_rules]
-                if isinstance(narrative_rules, list)
-                else []
-            ),
-            genre=str(data.get("genre", "")),
-            tone=str(data.get("tone", "")),
-        )
 
 
 @dataclass
@@ -122,6 +72,74 @@ class WorldCanon:
         return cls(
             rules=[str(rule) for rule in rules] if isinstance(rules, list) else [],
             scoped=scoped,
+        )
+
+
+@dataclass
+class NovelMeta:
+    title: str
+    style: str
+    world_rules: InitVar[list[str] | None] = None
+    world: WorldCanon = field(default_factory=WorldCanon)
+    schema_version: int = 2
+    pov: str = ""
+    tense: str = ""
+    taboos: list[str] = field(default_factory=list)
+    target_audience: str = ""
+    narrative_rules: list[str] = field(default_factory=list)
+    genre: str = ""
+    tone: str = ""
+
+    def __post_init__(self, world_rules: list[str] | None) -> None:
+        if world_rules and not self.world.rules and not self.world.scoped:
+            self.world = WorldCanon(rules=[str(rule) for rule in world_rules])
+
+    @property
+    def world_rules(self) -> list[str]:
+        """向后兼容：仅指全局规则（不含 scoped）。"""
+        return list(self.world.rules)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "title": self.title,
+            "style": self.style,
+            "world": self.world.to_dict(),
+            "pov": self.pov,
+            "tense": self.tense,
+            "taboos": self.taboos,
+            "target_audience": self.target_audience,
+            "narrative_rules": self.narrative_rules,
+            "genre": self.genre,
+            "tone": self.tone,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> NovelMeta:
+        from lnagent.memory.meta_migrate import META_SCHEMA_VERSION, upgrade_meta_dict
+
+        upgraded = upgrade_meta_dict(data if isinstance(data, dict) else {})
+        world_data = upgraded.get("world", {})
+        taboos = upgraded.get("taboos", [])
+        narrative_rules = upgraded.get("narrative_rules", [])
+        return cls(
+            title=str(upgraded["title"]),
+            style=str(upgraded["style"]),
+            world=WorldCanon.from_dict(
+                world_data if isinstance(world_data, dict) else {}
+            ),
+            schema_version=int(upgraded.get("schema_version", META_SCHEMA_VERSION)),
+            pov=str(upgraded.get("pov", "")),
+            tense=str(upgraded.get("tense", "")),
+            taboos=[str(r) for r in taboos] if isinstance(taboos, list) else [],
+            target_audience=str(upgraded.get("target_audience", "")),
+            narrative_rules=(
+                [str(r) for r in narrative_rules]
+                if isinstance(narrative_rules, list)
+                else []
+            ),
+            genre=str(upgraded.get("genre", "")),
+            tone=str(upgraded.get("tone", "")),
         )
 
 

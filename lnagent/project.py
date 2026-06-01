@@ -8,7 +8,7 @@ from pathlib import Path
 from lnagent.memory.models import NovelMeta
 from lnagent.memory.store import JsonMemoryStore
 
-_REQUIRED_META_FIELDS = ("title", "style", "world_rules")
+_REQUIRED_META_FIELDS = ("title", "style")
 
 
 def collect_novel_meta() -> NovelMeta:
@@ -79,11 +79,34 @@ def load_meta_from_file(meta_path: Path) -> NovelMeta:
         raise ValueError("meta JSON 字段 title 不能为空")
     if not str(data["style"]).strip():
         raise ValueError("meta JSON 字段 style 不能为空")
-    world_rules = data["world_rules"]
-    if not isinstance(world_rules, list) or not world_rules:
-        raise ValueError("meta JSON 字段 world_rules 必须是非空数组")
+    _validate_world_content(data)
 
     return NovelMeta.from_dict(data)
+
+
+def _validate_world_content(data: dict) -> None:
+    world = data.get("world")
+    if isinstance(world, dict):
+        rules = world.get("rules", [])
+        scoped = world.get("scoped", [])
+        has_rules = isinstance(rules, list) and bool(rules)
+        has_scoped = (
+            isinstance(scoped, list)
+            and any(
+                isinstance(entry, dict) and entry.get("rules")
+                for entry in scoped
+            )
+        )
+        if has_rules or has_scoped:
+            return
+
+    world_rules = data.get("world_rules")
+    if isinstance(world_rules, list) and world_rules:
+        return
+
+    raise ValueError(
+        "meta JSON 须包含非空 world.rules、world.scoped 或旧版 world_rules"
+    )
 
 
 def _prompt_required(label: str) -> str:

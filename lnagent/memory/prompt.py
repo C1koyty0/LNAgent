@@ -14,6 +14,7 @@ from lnagent.memory.context_budget import (
 )
 from lnagent.memory.canon_context import resolve_active_scopes
 from lnagent.memory.canon_display import format_hot_canon_for_prompt
+from lnagent.memory.meta_display import format_meta_for_prompt
 from lnagent.memory.models import ContextConfig, HotCanon, NovelMeta, SceneSynopsisEntry
 from lnagent.memory.short_term import ShortTermBuffer
 
@@ -47,30 +48,16 @@ class PromptContextBuilder:
         config = context_config or ContextConfig()
         report = BudgetReport()
 
-        meta_parts = [
-            f"书名：{meta.title}",
-            f"文风：{meta.style}",
-        ]
-        if meta.world_rules:
-            rules_text = "\n".join(f"- {rule}" for rule in meta.world_rules)
-            meta_parts.append(f"世界规则：\n{rules_text}")
-        if meta.pov:
-            meta_parts.append(f"叙述人称：{meta.pov}")
-        if meta.tense:
-            meta_parts.append(f"叙事时态：{meta.tense}")
-        if meta.taboos:
-            taboos_text = "\n".join(f"- {rule}" for rule in meta.taboos)
-            meta_parts.append(f"禁忌内容：\n{taboos_text}")
-        if meta.target_audience:
-            meta_parts.append(f"目标读者：{meta.target_audience}")
-        if meta.narrative_rules:
-            narrative_rules_text = "\n".join(f"- {rule}" for rule in meta.narrative_rules)
-            meta_parts.append(f"叙事规则：\n{narrative_rules_text}")
-        if meta.genre:
-            meta_parts.append(f"题材类型：{meta.genre}")
-        if meta.tone:
-            meta_parts.append(f"整体语气：{meta.tone}")
-        meta_text = clip_head("\n".join(meta_parts), config.meta_limit, report, "meta")
+        active_scopes = resolve_active_scopes(
+            canon,
+            prior_scene_entry=prior_scene_cold,
+        )
+        meta_text = clip_head(
+            format_meta_for_prompt(meta, active_scopes=active_scopes),
+            config.meta_limit,
+            report,
+            "meta",
+        )
 
         global_text = clip_head(
             global_summary.strip(),
@@ -83,10 +70,6 @@ class PromptContextBuilder:
             config.prior_scene_cold_limit,
             report,
             "prior_scene_cold",
-        )
-        active_scopes = resolve_active_scopes(
-            canon,
-            prior_scene_entry=prior_scene_cold,
         )
         canon_text = clip_head(
             format_hot_canon_for_prompt(canon, active_scopes=active_scopes) or "",

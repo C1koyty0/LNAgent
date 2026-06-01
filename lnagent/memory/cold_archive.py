@@ -9,6 +9,7 @@ from typing import Any, Protocol
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from lnagent.memory.canon_extractor import _strip_json_fence
+from lnagent.memory.meta_display import format_meta_for_prompt
 from lnagent.memory.models import NovelMeta, SceneSynopsisEntry
 
 
@@ -70,10 +71,7 @@ class ColdArchiveExtractor:
     ) -> ColdProposal:
         meta_block = ""
         if meta is not None:
-            meta_block = (
-                f"书名：{meta.title}\n文风：{meta.style}\n"
-                f"世界规则：{json.dumps(meta.world_rules, ensure_ascii=False)}\n\n"
-            )
+            meta_block = format_meta_for_prompt(meta, active_scopes=None) + "\n\n"
         messages = [
             SystemMessage(content=_PROPOSE_SYSTEM_PROMPT),
             HumanMessage(

@@ -14,11 +14,17 @@ from lnagent.cli.commands import (
     parse_command,
 )
 from lnagent.cli.canon_migrate import parse_migrate_flags, run_canon_migrate
+from lnagent.cli.meta_cmd import (
+    parse_meta_migrate_flags,
+    run_meta_migrate,
+    run_meta_view,
+)
 from lnagent.cli.export import export_manuscript
 from lnagent.cli.fix import run_fix
 from lnagent.cli.scene import run_scene_switch
 from lnagent.cli.undo import run_undo
 from lnagent.memory.canon_extractor import CanonExtractor, CanonPatchParseError
+from lnagent.memory.meta_extractor import MetaExtractor
 from lnagent.memory.cold_archive import ColdProposalParseError
 from lnagent.memory.context_budget import format_budget_notice
 from lnagent.memory.scene_switch import SceneSwitchAdvisor
@@ -99,6 +105,14 @@ def run_cli(argv: list[str] | None = None) -> None:
                     store,
                     CanonExtractor(model),
                     force=parse_migrate_flags(command.text),
+                )
+            elif command.action == CommandAction.META:
+                run_meta_view(store)
+            elif command.action == CommandAction.META_MIGRATE:
+                run_meta_migrate(
+                    store,
+                    MetaExtractor(model),
+                    force=parse_meta_migrate_flags(command.text),
                 )
             elif command.action == CommandAction.SCENE:
                 run_scene_switch(session)
