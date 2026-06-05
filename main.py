@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from lnagent import Settings, create_chat_model
+from lnagent.bootstrap import bootstrap_project_runtime
 from lnagent.cli.adopt import read_adopt_text, read_yes_no
 from lnagent.cli.config import run_config
 from lnagent.cli.commands import (
@@ -28,9 +28,6 @@ from lnagent.memory.meta_extractor import MetaExtractor
 from lnagent.memory.cold_archive import ColdProposalParseError
 from lnagent.memory.context_budget import format_budget_notice
 from lnagent.memory.scene_switch import SceneSwitchAdvisor
-from lnagent.memory.store import JsonMemoryStore
-from lnagent.project import open_or_create_project
-from lnagent.session import NovelSession
 
 _EXIT_COMMANDS = frozenset({"quit", "exit", "q"})
 
@@ -53,18 +50,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def run_cli(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
-    settings = Settings.from_env().with_project(args.project)
-    store = JsonMemoryStore(settings.project_dir)
 
     try:
-        meta_path = Path(args.meta) if args.meta else None
-        meta = open_or_create_project(store, meta_path=meta_path)
+        runtime = bootstrap_project_runtime(
+            args.project,
+            meta_path=Path(args.meta) if args.meta else None,
+        )
     except ValueError as exc:
         print(f"错误: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    model = create_chat_model(settings)
-    session = NovelSession(store, model, meta)
+    settings = runtime.settings
+    store = runtime.store
+    meta = runtime.meta
+    session = runtime.session
+    model = runtime.model
 
     print("LNAgent 对话已启动（多轮，当前场景）")
     print(f"项目: {args.project}")

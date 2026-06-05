@@ -45,6 +45,20 @@ def init_project_from_meta_file(store: JsonMemoryStore, meta_path: Path) -> Nove
     return meta
 
 
+def create_project_from_meta_dict(
+    store: JsonMemoryStore,
+    meta_data: dict,
+) -> NovelMeta:
+    if store.project_exists():
+        raise ValueError("项目已存在，不能重复创建")
+    if not isinstance(meta_data, dict):
+        raise ValueError("meta 数据必须是对象")
+    meta = _load_meta_from_data(meta_data)
+    store.ensure_project_layout()
+    store.save_meta(meta)
+    return meta
+
+
 def open_or_create_project(
     store: JsonMemoryStore,
     *,
@@ -68,6 +82,10 @@ def load_meta_from_file(meta_path: Path) -> NovelMeta:
     except json.JSONDecodeError as exc:
         raise ValueError(f"meta 文件不是有效 JSON: {meta_path}") from exc
 
+    return _load_meta_from_data(data)
+
+
+def _load_meta_from_data(data: object) -> NovelMeta:
     if not isinstance(data, dict):
         raise ValueError("meta JSON 根节点必须是对象")
 

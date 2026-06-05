@@ -182,11 +182,11 @@
 - [x] **7.5.1 `/canon migrate`**：读取当前 canon → LLM 转 v2 全表 → diff → y/n → 写盘  
   产出：`lnagent/cli/canon_migrate.py`、`commands.py`、`main.py`
 - [x] **7.5.2 安全**：已为 v2 时需 `--force`；不改正文、不写 `adopt_stack`  
-- [ ] **7.5.3 手工**：test1 项目跑通 migrate B（建议作者本地 spot-check）
-
+  产出：`lnagent/cli/canon_migrate.py`、`commands.py`、`main.py`
+- [x] **7.5.3 手工**：test1 项目跑通 migrate B（作者已手工验收，待文档同步）
 **验收**：
 
-- [ ] test1 经 migrate B 后结构清晰（手工 spot-check）；作者可 n 拒绝（流程已实现）
+- [x] test1 经 migrate B 后结构清晰（作者已手工 spot-check）；作者可 n 拒绝（流程已实现）
 
 ---
 
@@ -284,7 +284,7 @@ tests/
 - [x] `/c` 为人类可读摘要  
 - [x] adopt / fix / undo / reconcile 流程与 y/n 语义不变  
 
-7.5 migrate B 已实现；test1 手工 migrate 为可选 spot-check。
+7.5 migrate B 已实现并完成 `test1` 手工 migrate spot-check。
 
 ---
 
@@ -304,3 +304,4 @@ tests/
 |------|------|
 | 2026-05-29 | 初稿：S3 优先；迁移 A+B；能力 id/整数 level；读 v1 写 v2 |
 | 2026-05-29 | Phase 7.1–7.5 代码实现完成；单测 92 项通过 |
+| 2026-06-04 | 同步 7.5 手工验收状态：`test1` migrate B 已由作者手工确认 |

@@ -27,6 +27,9 @@
 - Install dependencies: `pip install -r requirements.txt`
 - Start the CLI: `python main.py --project <project_id>`
 - Start with initial meta JSON: `python main.py --project <project_id> --meta path/to/meta.json`
+- Start Web directly: `python web_main.py --host 127.0.0.1 --port 8000`
+- Start Web (macOS / Linux): `bash scripts/start-web.sh`
+- Start Web (PowerShell): `pwsh -File scripts/start-web.ps1`
 - Run tests: `python -m unittest`
 - Run the main regression file directly: `python -m unittest tests.test_memory_store`
 
