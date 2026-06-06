@@ -252,3 +252,90 @@ button:disabled {
   font-size: 0.88rem;
   margin: 0.5rem 0 0;
 }
+
+.page-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  background: #ebe4d8;
+  color: var(--text);
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.callout {
+  border-color: #c8b68a;
+  background: #faf3e4;
+}
+
+.kv-list {
+  display: grid;
+  grid-template-columns: minmax(120px, 38%) 1fr;
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+}
+
+.kv-list dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.kv-list dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.summary-block {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sub-block {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #faf7f2;
+}
+
+.plain-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.manuscript-item {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.manuscript-item.is-active {
+  border-color: var(--accent);
+  background: #eef4f0;
+}
+
+details {
+  margin-top: 0.75rem;
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.88rem;
+}

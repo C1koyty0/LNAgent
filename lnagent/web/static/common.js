@@ -47,3 +47,36 @@ function setBusy(buttons, busy) {
     }
   });
 }
+
+function setPageLoading(overlay, textEl, busy, message) {
+  if (!overlay) {
+    return;
+  }
+  overlay.classList.toggle("hidden", !busy);
+  if (textEl && message) {
+    textEl.textContent = message;
+  }
+}
+
+function downloadText(filename, content) {
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function withPageBusy({ overlay, textEl, buttons, message }, task) {
+  setPageLoading(overlay, textEl, true, message || "处理中…");
+  setBusy(buttons, true);
+  try {
+    return await task();
+  } finally {
+    setPageLoading(overlay, textEl, false);
+    setBusy(buttons, false);
+  }
+}

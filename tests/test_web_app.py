@@ -149,6 +149,8 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("data-project-id='demo'", project_html)
             self.assertIn("data-action='send'", project_html)
             self.assertIn("/static/project.js", project_html)
+            self.assertIn("data-action='undo'", project_html)
+            self.assertIn("config-form", project_html)
 
     def test_static_assets_are_served(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -164,8 +166,65 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertEqual(js.status_code, 200)
             self.assertIn(b"refreshAll", js.body)
 
+            render_js = client.get("/static/render.js")
+            self.assertEqual(render_js.status_code, 200)
+            self.assertIn(b"renderMetaSummary", render_js.body)
+
             missing = client.get("/static/not-found.js")
             self.assertEqual(missing.status_code, 404)
+
+    def test_undo_export_and_config_apis(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(Path(tmp), replies=["候选正文"], canon_name="莉亚")
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            client.post("/api/projects/demo/send", json={"text": "继续写"})
+            client.post(
+                "/api/projects/demo/adopt/commit",
+                json={"text": "第一场正文", "accepted_canon": True},
+            )
+
+            undo_response = client.post("/api/projects/demo/undo")
+            self.assertEqual(undo_response.status_code, 200)
+            undo_payload = undo_response.get_json()
+            self.assertEqual(undo_payload["undone_text"], "第一场正文")
+            self.assertEqual(undo_payload["session"]["adopted_prose"], "")
+
+            client.post(
+                "/api/projects/demo/adopt/commit",
+                json={"text": "恢复后的正文", "accepted_canon": False},
+            )
+
+            export_response = client.post("/api/projects/demo/export")
+            self.assertEqual(export_response.status_code, 200)
+            export_payload = export_response.get_json()
+            self.assertIn("恢复后的正文", export_payload["content"])
+            self.assertTrue(export_payload["filename"].endswith(".md"))
+
+            config_response = client.get("/api/projects/demo/config")
+            self.assertEqual(config_response.status_code, 200)
+            config_payload = config_response.get_json()
+            self.assertIn("context.char_budget", config_payload["available_keys"])
+            self.assertIn("context.char_budget", config_payload["flat"])
+
+            update_response = client.post(
+                "/api/projects/demo/config",
+                json={
+                    "action": "set",
+                    "key": "context.char_budget",
+                    "value": 500000,
+                },
+            )
+            self.assertEqual(update_response.status_code, 200)
+            update_payload = update_response.get_json()
+            self.assertEqual(update_payload["config"]["flat"]["context.char_budget"], 500000)
+
+            manuscripts_response = client.get("/api/projects/demo/manuscripts")
+            self.assertEqual(manuscripts_response.status_code, 200)
+            manuscripts_payload = manuscripts_response.get_json()
+            self.assertEqual(manuscripts_payload["current_scene_id"], "scene_001")
+            self.assertEqual(len(manuscripts_payload["scenes"]), 1)
 
     def test_create_project_via_api(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

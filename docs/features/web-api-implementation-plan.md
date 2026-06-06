@@ -379,6 +379,33 @@ CLI 交互函数适合终端，不适合 HTTP。
 
 ---
 
+## Phase W6：MVP 完善（CLI parity + 体验 polish）
+
+**目标**：补齐 Web 与 CLI 的能力差距，并改善项目页的基础可用性。
+
+**做什么**：
+
+- 新增 `undo` / `export` / `config` 更新 API
+- 新增 `manuscripts` 列表查询
+- 项目页增加撤销、导出、配置编辑入口
+- 侧栏结构化展示 Meta / Canon / Synopsis / 多场景正文
+- 请求 loading 状态与场景切换建议引导
+
+**任务清单**：
+
+- [x] W6.1 `POST /undo`、`POST /export`、`POST /config`、`GET /manuscripts`
+- [x] W6.2 AppService 封装与 CLI 共用 export/config 逻辑
+- [x] W6.3 项目页 UI 与静态资源更新
+- [x] W6.4 回归测试与文档状态同步
+
+**验收**：
+
+- [x] Web 可撤销 adopt、导出 Markdown、修改项目配置
+- [x] 侧栏可读性优于纯 JSON 展示
+- [x] `python -m unittest` 通过
+
+---
+
 ## 下一阶段（不在本计划内）
 
 Web/API 第一版完成后，再考虑：
@@ -395,4 +422,5 @@ Web/API 第一版完成后，再考虑：
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-06 | W6：MVP 完善（CLI parity API + 项目页体验 polish） |
 | 2026-06-04 | 初稿：将 Web/API 第一版拆成 W0–W5，要求每阶段包含目标、效果、验收与可追踪状态；用于跨 session 持续追踪进度 |

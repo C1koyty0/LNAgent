@@ -15,6 +15,13 @@ from lnagent.memory.context_budget import format_budget_notice
 from lnagent.memory.models import NovelMeta
 from lnagent.memory.scene_switch import SceneSwitchAdvisor
 from lnagent.memory.store import JsonMemoryStore
+from lnagent.cli.config import (
+    ConfigCommandError,
+    flatten_project_config,
+    handle_config_args,
+    list_config_keys,
+)
+from lnagent.cli.export import export_manuscript as write_export_manuscript
 from lnagent.project import create_project_from_meta_dict
 from lnagent.project_index import ProjectSummary, list_projects
 from lnagent.session import AdoptProposal, NovelSession, ReconcileItem
@@ -93,7 +100,85 @@ class AppService:
         return self.open_project(project_id).store.load_synopsis().to_dict()
 
     def get_config(self, project_id: str) -> dict:
-        return self.open_project(project_id).session.config.to_dict()
+        handle = self.open_project(project_id)
+        config = handle.session.config.to_dict()
+        return {
+            **config,
+            "available_keys": list_config_keys(),
+            "flat": flatten_project_config(handle.session.config),
+        }
+
+    def update_config(
+        self,
+        project_id: str,
+        *,
+        action: str,
+        key: str = "",
+        value: int | None = None,
+    ) -> dict:
+        handle = self.open_project(project_id)
+        normalized_action = action.strip().lower()
+        if normalized_action == "set":
+            if not key.strip():
+                raise ValueError("set 需要 key")
+            if value is None:
+                raise ValueError("set 需要 value")
+            args = f"set {key.strip()} {value}"
+        elif normalized_action == "reset":
+            if not key.strip():
+                raise ValueError("reset 需要 key 或 all")
+            args = f"reset {key.strip()}"
+        else:
+            raise ValueError(f"未知 config action: {action}")
+        try:
+            updated, message = handle_config_args(handle.session.config, args)
+        except ConfigCommandError as exc:
+            raise ValueError(str(exc)) from exc
+        if updated != handle.session.config:
+            handle.session.update_config(updated)
+        return {
+            "config": self.get_config(project_id),
+            "message": message,
+        }
+
+    def undo_last_adopt(self, project_id: str) -> dict:
+        handle = self.open_project(project_id)
+        record = handle.session.undo_last_adopt()
+        return {
+            "message": "已撤销最后一次采纳",
+            "undone_text": record.text,
+            "session": self.get_session_state(project_id),
+        }
+
+    def export_manuscript(self, project_id: str, output_path: str | None = None) -> dict:
+        handle = self.open_project(project_id)
+        target = Path(output_path) if output_path else None
+        written = write_export_manuscript(handle.store, target)
+        content = written.read_text(encoding="utf-8")
+        try:
+            relative_path = str(written.relative_to(handle.store.project_dir))
+        except ValueError:
+            relative_path = str(written)
+        return {
+            "path": relative_path,
+            "filename": written.name,
+            "content": content,
+        }
+
+    def list_manuscripts(self, project_id: str) -> dict:
+        handle = self.open_project(project_id)
+        scenes: list[dict[str, str]] = []
+        for scene_path in handle.store.list_scene_manuscript_paths():
+            scenes.append(
+                {
+                    "scene_id": scene_path.stem,
+                    "text": scene_path.read_text(encoding="utf-8"),
+                }
+            )
+        return {
+            "current_scene_id": handle.session.scene_id,
+            "scenes": scenes,
+        }
 
     def get_session_state(self, project_id: str) -> dict:
         handle = self.open_project(project_id)

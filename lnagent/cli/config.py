@@ -20,6 +20,14 @@ class ConfigurableSession(Protocol):
     def update_config(self, config: ProjectConfig) -> None: ...
 
 
+def list_config_keys() -> list[str]:
+    return list(_CONFIG_KEYS.keys())
+
+
+def flatten_project_config(config: ProjectConfig) -> dict[str, int]:
+    return {key: _get_config_value(config, key) for key in _CONFIG_KEYS}
+
+
 _CONFIG_KEYS: dict[str, tuple[str, str]] = {
     "context.char_budget": ("context", "char_budget"),
     "context.messages_limit": ("context", "messages_limit"),

@@ -122,10 +122,33 @@ class SimpleWebApp:
             return self._json_response(self._service.get_synopsis(project_id))
         if method == "GET" and suffix == "/config":
             return self._json_response(self._service.get_config(project_id))
+        if method == "POST" and suffix == "/config":
+            raw_value = payload.get("value")
+            parsed_value = None if raw_value is None else int(raw_value)
+            return self._json_response(
+                self._service.update_config(
+                    project_id,
+                    action=str(payload.get("action", "")),
+                    key=str(payload.get("key", "")),
+                    value=parsed_value,
+                )
+            )
+        if method == "GET" and suffix == "/manuscripts":
+            return self._json_response(self._service.list_manuscripts(project_id))
         if method == "GET" and suffix == "/session":
             return self._json_response(self._service.get_session_state(project_id))
         if method == "GET" and suffix == "/manuscript":
             return self._json_response(self._service.get_manuscript(project_id))
+        if method == "POST" and suffix == "/undo":
+            return self._json_response(self._service.undo_last_adopt(project_id))
+        if method == "POST" and suffix == "/export":
+            output_path = payload.get("output_path")
+            return self._json_response(
+                self._service.export_manuscript(
+                    project_id,
+                    str(output_path) if output_path else None,
+                )
+            )
         if method == "POST" and suffix == "/send":
             return self._json_response(self._service.send_message(project_id, payload.get("text", "")))
         if method == "POST" and suffix == "/adopt/prepare":
@@ -295,6 +318,15 @@ def _render_project(project_id: str) -> str:
         "<a href='/'>返回首页</a>"
         "</header>"
         "<div id='status-message' class='status'></div>"
+        "<div id='page-loading' class='page-loading hidden' aria-live='polite'>"
+        "<span class='spinner'></span><span id='page-loading-text'>处理中…</span>"
+        "</div>"
+        "<section id='scene-suggestion' class='panel callout hidden'>"
+        "<p id='scene-suggestion-text'></p>"
+        "<div class='button-row'>"
+        "<button type='button' class='primary' data-action='scene-prepare'>准备切换场景</button>"
+        "</div>"
+        "</section>"
         "<div class='layout'>"
         "<main>"
         "<section class='panel'>"
@@ -314,6 +346,7 @@ def _render_project(project_id: str) -> str:
         "<button type='button' data-action='adopt-prepare'>预览 Canon 变更</button>"
         "<button type='button' class='primary' data-action='adopt-commit-yes'>采纳并接受设定</button>"
         "<button type='button' data-action='adopt-commit-no'>采纳但拒绝设定</button>"
+        "<button type='button' class='danger' data-action='undo'>撤销上次采纳</button>"
         "</div>"
         "<pre id='adopt-preview' class='pre-block hidden'></pre>"
         "<h3>当前场景已采纳正文</h3>"
@@ -344,6 +377,13 @@ def _render_project(project_id: str) -> str:
         "</div>"
         "</section>"
         "<section class='panel'>"
+        "<h2>工具</h2>"
+        "<div class='button-row'>"
+        "<button type='button' data-action='export'>导出全书 Markdown</button>"
+        "</div>"
+        "<p id='export-result' class='hint'></p>"
+        "</section>"
+        "<section class='panel'>"
         "<h2>场景切换入口</h2>"
         "<p class='hint'>完成至少一次采纳后，可准备切换到下一场景。</p>"
         "<div class='button-row'>"
@@ -358,20 +398,41 @@ def _render_project(project_id: str) -> str:
         "<p id='budget-notice' class='hint'></p>"
         "</section>"
         "<section class='panel'>"
+        "<h2>项目配置</h2>"
+        "<div id='config-summary' class='kv-list'></div>"
+        "<form id='config-form' class='form-grid'>"
+        "<label>配置项<select id='config-key'></select></label>"
+        "<label>值<input id='config-value' type='number' min='0' required></label>"
+        "<div class='button-row'>"
+        "<button type='submit' class='primary'>更新配置</button>"
+        "<button type='button' data-action='config-reset'>重置选中项</button>"
+        "<button type='button' data-action='config-reset-all'>重置全部</button>"
+        "</div>"
+        "</form>"
+        "</section>"
+        "<section class='panel'>"
         "<h2>Meta</h2>"
-        "<pre id='meta-json' class='pre-block json-block'></pre>"
+        "<div id='meta-summary' class='summary-block'></div>"
+        "<details><summary>原始 JSON</summary>"
+        "<pre id='meta-json' class='pre-block json-block'></pre></details>"
         "</section>"
         "<section class='panel'>"
         "<h2>Hot Canon</h2>"
-        "<pre id='canon-json' class='pre-block json-block'></pre>"
+        "<div id='canon-summary' class='summary-block'></div>"
+        "<details><summary>原始 JSON</summary>"
+        "<pre id='canon-json' class='pre-block json-block'></pre></details>"
         "</section>"
         "<section class='panel'>"
         "<h2>Synopsis</h2>"
-        "<pre id='synopsis-json' class='pre-block json-block'></pre>"
+        "<div id='synopsis-summary' class='summary-block'></div>"
+        "<details><summary>原始 JSON</summary>"
+        "<pre id='synopsis-json' class='pre-block json-block'></pre></details>"
         "</section>"
         "<section class='panel'>"
         "<h2>Manuscript</h2>"
-        "<pre id='manuscript-text' class='pre-block json-block'></pre>"
+        "<div id='manuscript-list' class='summary-block'></div>"
+        "<details><summary>当前场景正文</summary>"
+        "<pre id='manuscript-text' class='pre-block json-block'></pre></details>"
         "</section>"
         "</aside>"
         "</div>"
@@ -380,5 +441,5 @@ def _render_project(project_id: str) -> str:
     return _page_shell(
         title=f"LNAgent · {project_id}",
         body=body,
-        scripts=["/static/common.js", "/static/project.js"],
+        scripts=["/static/common.js", "/static/render.js", "/static/project.js"],
     )

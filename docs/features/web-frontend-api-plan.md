@@ -397,6 +397,15 @@ Web 第一版还需要新增一种：
 - Hot Canon / Meta / Synopsis 侧栏
 - scene switch 面板
 
+**状态**：已实现（2026-06）。
+
+### Phase W6：MVP 完善
+
+- CLI parity：`/undo`、`/export`、`/config`
+- 结构化侧栏、loading、场景切换建议引导
+
+**状态**：已实现（2026-06）。
+
 ### Phase W3：增强查询与 RAG-lite 预留
 
 - 增加 manuscript/synopsis 查询能力
@@ -441,4 +450,5 @@ Web 第一版还需要新增一种：
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-06 | W6：MVP 完善（undo/export/config、结构化侧栏、loading） |
 | 2026-06-04 | 初稿：整理 Web 前端与 API 改造方案；确认 Web 启动不预绑定项目、`project_id` 路径参数、暂不做鉴权；补充 JSON vs SQLite 的阶段性判断 |
