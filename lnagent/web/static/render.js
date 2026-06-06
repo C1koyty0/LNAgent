@@ -1,3 +1,86 @@
+function canonFieldLabel(key) {
+  const labels = {
+    abilities: "能力",
+    status: "状态",
+    relationships: "关系",
+    inventory: "物品",
+    location: "位置",
+  };
+  return labels[key] || key;
+}
+
+function formatCanonFieldValue(value, depth = 0) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    if (!value.length) {
+      return "（无）";
+    }
+    return value
+      .map((item) => formatCanonFieldValue(item, depth + 1))
+      .filter(Boolean)
+      .join("；");
+  }
+  if (typeof value === "object") {
+    if (value.summary) {
+      return String(value.summary);
+    }
+    if (value.name && depth > 0) {
+      return String(value.name);
+    }
+    return Object.entries(value)
+      .map(([key, nested]) => `${key}: ${formatCanonFieldValue(nested, depth + 1)}`)
+      .filter((line) => !line.endsWith(": "))
+      .join("；");
+  }
+  return String(value);
+}
+
+function renderCanonAbilities(abilities) {
+  if (!Array.isArray(abilities) || !abilities.length) {
+    return "<span class='hint'>（无）</span>";
+  }
+  return `<ul class='plain-list canon-ability-list'>${abilities
+    .map((ability) => {
+      const title = ability.name || ability.id || "未命名能力";
+      const detail = ability.summary ? `<span class='hint'> — ${escapeHtml(ability.summary)}</span>` : "";
+      return `<li><strong>${escapeHtml(title)}</strong>${detail}</li>`;
+    })
+    .join("")}</ul>`;
+}
+
+function renderCanonCharacter(character) {
+  const name = character.name || "未命名";
+  const fields = Object.entries(character).filter(([key]) => key !== "name");
+  const body = fields
+    .map(([key, value]) => {
+      if (key === "abilities" && Array.isArray(value)) {
+        return `
+          <div class='canon-field'>
+            <span class='canon-field-key'>${escapeHtml(canonFieldLabel(key))}</span>
+            ${renderCanonAbilities(value)}
+          </div>
+        `;
+      }
+      const text = formatCanonFieldValue(value);
+      if (!text) {
+        return "";
+      }
+      return `
+        <div class='canon-field'>
+          <span class='canon-field-key'>${escapeHtml(canonFieldLabel(key))}</span>
+          <div class='canon-field-val'>${escapeHtml(text)}</div>
+        </div>
+      `;
+    })
+    .join("");
+  return `<li class='canon-character'><strong>${escapeHtml(name)}</strong>${body}</li>`;
+}
+
 function renderMetaSummary(meta) {
   const rows = [
     ["书名", meta.title],
@@ -42,17 +125,8 @@ function renderCanonSummary(canon) {
 
   let html = "";
   if (characters.length) {
-    html += "<div class='sub-block'><strong>角色</strong><ul class='plain-list'>";
-    html += characters
-      .map((character) => {
-        const name = character.name || "未命名";
-        const extras = Object.entries(character)
-          .filter(([key]) => key !== "name")
-          .map(([key, value]) => `${key}: ${value}`)
-          .join(" · ");
-        return `<li><strong>${escapeHtml(name)}</strong>${extras ? ` — ${escapeHtml(extras)}` : ""}</li>`;
-      })
-      .join("");
+    html += "<div class='sub-block'><strong>角色</strong><ul class='plain-list canon-character-list'>";
+    html += characters.map((character) => renderCanonCharacter(character)).join("");
     html += "</ul></div>";
   }
   if (worldRules.length) {
@@ -69,7 +143,12 @@ function renderCanonSummary(canon) {
   if (plotThreads.length) {
     html += "<div class='sub-block'><strong>情节线</strong><ul class='plain-list'>";
     html += plotThreads
-      .map((thread) => `<li>${escapeHtml(JSON.stringify(thread))}</li>`)
+      .map((thread) => {
+        const title = thread.title || thread.id || "未命名情节线";
+        const status = thread.status ? ` · ${thread.status}` : "";
+        const note = thread.note ? `<div class='canon-field-val'>${escapeHtml(thread.note)}</div>` : "";
+        return `<li><strong>${escapeHtml(title)}</strong><span class='hint'>${escapeHtml(status)}</span>${note}</li>`;
+      })
       .join("");
     html += "</ul></div>";
   }
@@ -81,7 +160,7 @@ function renderSynopsisSummary(synopsis) {
   const scenes = synopsis.scenes || [];
   let html = "";
   if (globalSummary) {
-    html += `<div class='sub-block'><strong>全书梗概</strong><p>${escapeHtml(globalSummary)}</p></div>`;
+    html += `<div class='sub-block'><strong>全书梗概</strong><div class='canon-field-val'>${escapeHtml(globalSummary)}</div></div>`;
   }
   if (scenes.length) {
     html += scenes
@@ -90,7 +169,7 @@ function renderSynopsisSummary(synopsis) {
           <div class='sub-block'>
             <strong>${escapeHtml(scene.id || "scene")}</strong>
             <p class='hint'>${escapeHtml(scene.location || "")} · ${escapeHtml(scene.time || "")}</p>
-            <p>${escapeHtml(scene.summary || "")}</p>
+            <div class='canon-field-val'>${escapeHtml(scene.summary || "")}</div>
             ${renderBulletList(scene.key_points || [])}
           </div>
         `,
@@ -181,12 +260,12 @@ function renderWritingProgress(session, manuscripts, synopsis) {
       <span class='step-badge step-${escapeHtml(step.tone)}'>${escapeHtml(step.label)}</span>
       <p class='hint progress-hint'>${escapeHtml(step.hint)}</p>
     </div>
-    <dl class='kv-list progress-stats'>
-      <dt>当前场景</dt><dd>${escapeHtml(sceneId || "—")}</dd>
-      <dt>对话轮数</dt><dd>${messageCount}</dd>
-      <dt>本场景采纳</dt><dd>${adoptCount} 段</dd>
-      <dt>距上次采纳</dt><dd>${turnsSinceAdopt} 轮 send</dd>
-    </dl>
+    <div class='kv-rows progress-stats'>
+      <div class='kv-row'><span class='kv-key'>当前场景</span><span class='kv-val'>${escapeHtml(sceneId || "—")}</span></div>
+      <div class='kv-row'><span class='kv-key'>对话轮数</span><span class='kv-val'>${messageCount}</span></div>
+      <div class='kv-row'><span class='kv-key'>本场景采纳</span><span class='kv-val'>${adoptCount} 段</span></div>
+      <div class='kv-row'><span class='kv-key'>距上次采纳</span><span class='kv-val'>${turnsSinceAdopt} 轮 send</span></div>
+    </div>
   `;
 
   if (archivedScenes.length) {
@@ -315,13 +394,22 @@ function populateConfigForm(configPayload) {
 }
 
 function renderKeyValueRows(rows) {
-  return `<dl class='kv-list'>${rows
-    .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")
+  const items = rows.filter(
+    ([, value]) => value !== undefined && value !== null && String(value).trim() !== "",
+  );
+  if (!items.length) {
+    return "";
+  }
+  return `<div class='kv-rows'>${items
     .map(
-      ([label, value]) =>
-        `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd>`,
+      ([label, value]) => `
+        <div class='kv-row'>
+          <span class='kv-key'>${escapeHtml(label)}</span>
+          <span class='kv-val'>${escapeHtml(String(value))}</span>
+        </div>
+      `,
     )
-    .join("")}</dl>`;
+    .join("")}</div>`;
 }
 
 function renderBulletSection(title, items) {

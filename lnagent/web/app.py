@@ -441,7 +441,7 @@ def _render_project(project_id: str) -> str:
         "</section>"
         "<section class='panel'>"
         "<h2>项目配置</h2>"
-        "<div id='config-summary' class='kv-list'></div>"
+        "<div id='config-summary'></div>"
         "<form id='config-form' class='form-grid'>"
         "<label>配置项<select id='config-key'></select></label>"
         "<label>值<input id='config-value' type='number' min='0' required></label>"

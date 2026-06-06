@@ -154,6 +154,7 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("data-action='undo'", project_html)
             self.assertIn("config-form", project_html)
             self.assertIn("writing-progress", project_html)
+            self.assertNotIn("id='config-summary' class='kv-list'", project_html)
 
     def test_static_assets_are_served(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
