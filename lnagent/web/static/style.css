@@ -346,8 +346,101 @@ details {
   margin-top: 0.75rem;
 }
 
-details summary {
+.details summary {
   cursor: pointer;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.progress-panel {
+  border-color: #c8d8cc;
+  background: linear-gradient(180deg, #f7fbf8 0%, var(--surface) 100%);
+}
+
+.progress-header {
+  margin-bottom: 0.75rem;
+}
+
+.progress-hint {
+  margin-top: 0.5rem;
+}
+
+.step-badge {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.step-accent {
+  background: #e8f0eb;
+  color: #264532;
+}
+
+.step-success {
+  background: #e8f0eb;
+  color: var(--accent);
+}
+
+.step-info {
+  background: #eef4fa;
+  color: #2a4a66;
+}
+
+.step-muted {
+  background: #ebe4d8;
+  color: var(--muted);
+}
+
+.progress-stats {
+  margin-bottom: 1rem;
+}
+
+.progress-section {
+  margin-top: 1rem;
+}
+
+.progress-section h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+
+.prose-archive,
+.prose-current,
+.candidate-callout {
+  margin-bottom: 0.75rem;
+}
+
+.prose-archive summary {
+  color: var(--text);
+  font-size: 0.92rem;
+  margin-bottom: 0.5rem;
+}
+
+.archive-summary {
+  margin: 0 0 0.65rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.prose-read {
+  max-height: 420px;
+  overflow: auto;
+  line-height: 1.7;
+  font-family: inherit;
+  white-space: pre-wrap;
+}
+
+.candidate-callout {
+  padding: 0.75rem;
+  border: 1px solid #c8b68a;
+  border-radius: 8px;
+  background: #faf3e4;
+}
+
+.candidate-callout strong,
+.prose-current strong {
+  display: block;
+  margin-bottom: 0.5rem;
 }

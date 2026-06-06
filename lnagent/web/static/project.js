@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const projectId = document.body.dataset.projectId;
+  const projectId = resolveProjectId();
   if (!projectId) {
+    const statusEl = document.getElementById("status-message");
+    setStatus(statusEl, "无法读取 project_id，请刷新页面或返回首页重试。", "error");
     return;
   }
 
@@ -381,12 +383,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function refreshAll() {
-    const [session, meta, canon, synopsis, manuscript, manuscripts, config] = await Promise.all([
+    const [session, meta, canon, synopsis, manuscripts, config] = await Promise.all([
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/session`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/meta`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/canon`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/synopsis`),
-      apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/manuscript`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/manuscripts`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/config`),
     ]);
@@ -399,8 +400,13 @@ document.addEventListener("DOMContentLoaded", () => {
     );
     document.getElementById("budget-notice").textContent = session.budget_notice || "无";
 
+    document.getElementById("writing-progress").innerHTML = renderWritingProgress(
+      session,
+      manuscripts,
+      synopsis,
+    );
+
     renderMessages(session.messages || []);
-    document.getElementById("adopted-prose").textContent = session.adopted_prose || "";
     adoptText.value = session.last_candidate || "";
 
     document.getElementById("meta-summary").innerHTML = renderMetaSummary(meta);
@@ -414,7 +420,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("meta-json").textContent = formatJson(meta);
     document.getElementById("canon-json").textContent = formatJson(canon);
     document.getElementById("synopsis-json").textContent = formatJson(synopsis);
-    document.getElementById("manuscript-text").textContent = manuscript.text || "";
 
     renderConfigViews(config);
   }
@@ -480,3 +485,12 @@ document.addEventListener("DOMContentLoaded", () => {
     node.closest(".message")?.classList.remove("streaming");
   }
 });
+
+function resolveProjectId() {
+  const fromBody = document.body.dataset.projectId;
+  if (fromBody) {
+    return fromBody;
+  }
+  const fromPage = document.querySelector("[data-project-id]");
+  return fromPage?.dataset.projectId || "";
+}

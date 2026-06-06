@@ -286,7 +286,7 @@ def _read_json_body(environ: dict[str, Any]) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _page_shell(*, title: str, body: str, scripts: list[str]) -> str:
+def _page_shell(*, title: str, body: str, scripts: list[str], body_attrs: str = "") -> str:
     script_tags = "".join(f'<script src="{escape(path)}" defer></script>' for path in scripts)
     return (
         "<!DOCTYPE html>"
@@ -297,7 +297,7 @@ def _page_shell(*, title: str, body: str, scripts: list[str]) -> str:
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<link rel='stylesheet' href='/static/style.css'>"
         "</head>"
-        f"<body>{body}{script_tags}</body>"
+        f"<body{body_attrs}>{body}{script_tags}</body>"
         "</html>"
     )
 
@@ -369,6 +369,10 @@ def _render_project(project_id: str) -> str:
         "</section>"
         "<div class='layout'>"
         "<main>"
+        "<section class='panel progress-panel'>"
+        "<h2>写作进度</h2>"
+        "<div id='writing-progress' class='summary-block'><p class='hint'>加载中…</p></div>"
+        "</section>"
         "<section class='panel'>"
         "<h2>对话</h2>"
         "<div id='messages' class='messages'><p class='hint'>加载中…</p></div>"
@@ -389,8 +393,6 @@ def _render_project(project_id: str) -> str:
         "<button type='button' class='danger' data-action='undo'>撤销上次采纳</button>"
         "</div>"
         "<pre id='adopt-preview' class='pre-block hidden'></pre>"
-        "<h3>当前场景已采纳正文</h3>"
-        "<pre id='adopted-prose' class='pre-block'></pre>"
         "</section>"
         "<section class='panel'>"
         "<h2>设定修正</h2>"
@@ -469,11 +471,9 @@ def _render_project(project_id: str) -> str:
         "<pre id='synopsis-json' class='pre-block json-block'></pre></details>"
         "</section>"
         "<section class='panel'>"
-        "<h2>Manuscript</h2>"
+        "<h2>Manuscript 索引</h2>"
+        "<p class='hint'>完整正文见上方「写作进度」。</p>"
         "<div id='manuscript-list' class='summary-block'></div>"
-        "<details><summary>当前场景正文</summary>"
-        "<pre id='manuscript-text' class='pre-block json-block'></pre></details>"
-        "</section>"
         "</aside>"
         "</div>"
         "</div>"
@@ -481,5 +481,6 @@ def _render_project(project_id: str) -> str:
     return _page_shell(
         title=f"LNAgent · {project_id}",
         body=body,
+        body_attrs=f" data-project-id='{safe_id}'",
         scripts=["/static/common.js", "/static/render.js", "/static/project.js"],
     )

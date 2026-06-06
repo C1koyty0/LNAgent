@@ -148,10 +148,12 @@ class WebAppIntegrationTest(unittest.TestCase):
             project_html = project_page.get_data(as_text=True)
             self.assertIn("项目：demo", project_html)
             self.assertIn("data-project-id='demo'", project_html)
+            self.assertIn("<body data-project-id='demo'", project_html)
             self.assertIn("data-action='send'", project_html)
             self.assertIn("/static/project.js", project_html)
             self.assertIn("data-action='undo'", project_html)
             self.assertIn("config-form", project_html)
+            self.assertIn("writing-progress", project_html)
 
     def test_static_assets_are_served(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
