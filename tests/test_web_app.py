@@ -136,12 +136,36 @@ class WebAppIntegrationTest(unittest.TestCase):
 
             home = client.get("/")
             self.assertEqual(home.status_code, 200)
-            self.assertIn("LNAgent Web", home.get_data(as_text=True))
-            self.assertIn("demo", home.get_data(as_text=True))
+            home_html = home.get_data(as_text=True)
+            self.assertIn("LNAgent Web", home_html)
+            self.assertIn("demo", home_html)
+            self.assertIn("create-project-form", home_html)
+            self.assertIn("/static/style.css", home_html)
 
             project_page = client.get("/projects/demo")
             self.assertEqual(project_page.status_code, 200)
-            self.assertIn("项目：demo", project_page.get_data(as_text=True))
+            project_html = project_page.get_data(as_text=True)
+            self.assertIn("项目：demo", project_html)
+            self.assertIn("data-project-id='demo'", project_html)
+            self.assertIn("data-action='send'", project_html)
+            self.assertIn("/static/project.js", project_html)
+
+    def test_static_assets_are_served(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(Path(tmp))
+            client = app.test_client()
+
+            css = client.get("/static/style.css")
+            self.assertEqual(css.status_code, 200)
+            self.assertIn("text/css", css.content_type)
+            self.assertIn(b"--bg", css.body)
+
+            js = client.get("/static/project.js")
+            self.assertEqual(js.status_code, 200)
+            self.assertIn(b"refreshAll", js.body)
+
+            missing = client.get("/static/not-found.js")
+            self.assertEqual(missing.status_code, 404)
 
     def test_create_project_via_api(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

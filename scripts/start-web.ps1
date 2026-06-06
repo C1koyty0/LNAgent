@@ -10,11 +10,12 @@
     pwsh -File scripts/start-web.ps1
 
 .EXAMPLE
-    pwsh -File scripts/start-web.ps1 -Host 0.0.0.0 -Port 9000
+    pwsh -File scripts/start-web.ps1 -ListenHost 0.0.0.0 -Port 9000
 #>
 
 param(
-    [string]$Host = $(if ($env:LNAGENT_WEB_HOST) { $env:LNAGENT_WEB_HOST } else { "127.0.0.1" }),
+    [Alias("Host")]
+    [string]$ListenHost = $(if ($env:LNAGENT_WEB_HOST) { $env:LNAGENT_WEB_HOST } else { "127.0.0.1" }),
     [int]$Port = $(if ($env:LNAGENT_WEB_PORT) { [int]$env:LNAGENT_WEB_PORT } else { 8000 }),
     [string]$ProjectsDir = $(if ($env:LNAGENT_PROJECTS_DIR) { $env:LNAGENT_PROJECTS_DIR } else { "" }),
     [string]$PythonBin = $(if ($env:PYTHON_BIN) { $env:PYTHON_BIN } else { "python" })
@@ -50,7 +51,7 @@ if (-not (Test-Path $ProjectsDir)) {
 
 $env:MODEL = $modelName
 $env:LNAGENT_PROJECTS_DIR = $ProjectsDir
-$env:LNAGENT_WEB_HOST = $Host
+$env:LNAGENT_WEB_HOST = $ListenHost
 $env:LNAGENT_WEB_PORT = "$Port"
 
 Set-Location $ProjectRoot
@@ -58,11 +59,11 @@ Set-Location $ProjectRoot
 Write-Host "==> 启动 LNAgent Web" -ForegroundColor Cyan
 Write-Host "项目目录: $ProjectRoot"
 Write-Host "Python: $(& $PythonBin --version 2>&1)"
-Write-Host "监听地址: http://$Host`:$Port"
+Write-Host "监听地址: http://$ListenHost`:$Port"
 Write-Host "小说项目目录: $ProjectsDir"
-Write-Host "前端页面: http://$Host`:$Port/"
-Write-Host "后端 API: http://$Host`:$Port/api/projects"
+Write-Host "前端页面: http://$ListenHost`:$Port/"
+Write-Host "后端 API: http://$ListenHost`:$Port/api/projects"
 Write-Host ""
 
-& $PythonBin web_main.py --host $Host --port $Port
+& $PythonBin web_main.py --host $ListenHost --port $Port
 exit $LASTEXITCODE

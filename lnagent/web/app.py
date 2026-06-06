@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 from html import escape
 from io import BytesIO
+from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs
 
 from lnagent.app_service import AppService
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 class SimpleResponse:
@@ -77,9 +80,9 @@ class SimpleWebApp:
                 return self._html_response(_render_home(self._service.list_projects()))
             if method == "GET" and path.startswith("/projects/"):
                 project_id = path.split("/", 2)[2]
-                overview = self._service.get_project_overview(project_id)
-                session = self._service.get_session_state(project_id)
-                return self._html_response(_render_project(project_id, overview, session))
+                return self._html_response(_render_project(project_id))
+            if method == "GET" and path.startswith("/static/"):
+                return self._serve_static(path[len("/static/") :])
             if path.startswith("/api/"):
                 return self._handle_api(method, path, environ)
             return self._json_response({"error": "not found"}, status=404)
@@ -165,6 +168,18 @@ class SimpleWebApp:
             )
         return self._json_response({"error": "not found"}, status=404)
 
+    def _serve_static(self, relative_path: str) -> SimpleResponse:
+        normalized = Path(relative_path)
+        if normalized.is_absolute() or ".." in normalized.parts:
+            return self._json_response({"error": "not found"}, status=404)
+        target = (STATIC_DIR / normalized).resolve()
+        if not str(target).startswith(str(STATIC_DIR.resolve())):
+            return self._json_response({"error": "not found"}, status=404)
+        if not target.is_file():
+            return self._json_response({"error": "not found"}, status=404)
+        content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        return SimpleResponse(target.read_bytes(), content_type=content_type)
+
     @staticmethod
     def _json_response(payload: Any, *, status: int = 200) -> SimpleResponse:
         return SimpleResponse(
@@ -208,31 +223,162 @@ def _read_json_body(environ: dict[str, Any]) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _page_shell(*, title: str, body: str, scripts: list[str]) -> str:
+    script_tags = "".join(f'<script src="{escape(path)}" defer></script>' for path in scripts)
+    return (
+        "<!DOCTYPE html>"
+        "<html lang='zh-CN'>"
+        "<head>"
+        "<meta charset='utf-8'>"
+        f"<title>{escape(title)}</title>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<link rel='stylesheet' href='/static/style.css'>"
+        "</head>"
+        f"<body>{body}{script_tags}</body>"
+        "</html>"
+    )
+
+
 def _render_home(projects: list[Any]) -> str:
     items = "".join(
-        f'<li><a href="/projects/{escape(item.project_id)}">{escape(item.project_id)}</a> — {escape(item.title)}</li>'
+        (
+            f"<li>"
+            f"<a href='/projects/{escape(item.project_id)}'>{escape(item.project_id)}</a>"
+            f"<div class='project-meta'>{escape(item.title)} · {escape(item.style)} · "
+            f"{escape(item.current_scene_id)}</div>"
+            f"</li>"
+        )
         for item in projects
     )
     if not items:
-        items = "<li>暂无项目</li>"
-    return (
-        "<html><head><meta charset='utf-8'><title>LNAgent Web</title></head><body>"
-        "<h1>LNAgent Web</h1>"
+        items = "<li class='hint'>暂无项目，可在下方创建。</li>"
+
+    body = (
+        "<div class='page'>"
+        "<header class='page-header'>"
+        "<div><h1>LNAgent Web</h1><p class='subtitle'>选择项目开始写作，或创建新项目。</p></div>"
+        "</header>"
+        "<div id='status-message' class='status'></div>"
+        "<div class='layout'>"
+        "<section class='panel'>"
         "<h2>项目列表</h2>"
-        f"<ul>{items}</ul>"
-        "</body></html>"
+        f"<ul class='project-list'>{items}</ul>"
+        "</section>"
+        "<section class='panel'>"
+        "<h2>创建项目</h2>"
+        "<form id='create-project-form' class='form-grid'>"
+        "<label>project_id<input id='project-id' type='text' required placeholder='例如 my-novel'></label>"
+        "<label>书名<input id='project-title' type='text' required placeholder='例如 魔法学院物语'></label>"
+        "<label>文风<input id='project-style' type='text' required placeholder='例如 轻小说'></label>"
+        "<label>世界规则（每行一条）<textarea id='project-world-rules' placeholder='魔法存在&#10;主角是普通学生'></textarea></label>"
+        "<div class='button-row'>"
+        "<button id='create-project-button' type='submit' class='primary'>创建并进入</button>"
+        "</div>"
+        "</form>"
+        "</section>"
+        "</div>"
+        "</div>"
     )
+    return _page_shell(title="LNAgent Web", body=body, scripts=["/static/common.js", "/static/home.js"])
 
 
-def _render_project(project_id: str, overview: dict, session: dict) -> str:
-    adopted = escape(str(session.get("adopted_prose", "")))
-    candidate = escape(str(session.get("last_candidate") or ""))
-    return (
-        "<html><head><meta charset='utf-8'><title>LNAgent Project</title></head><body>"
-        f"<h1>项目：{escape(project_id)}</h1>"
-        f"<p>书名：{escape(str(overview.get('title', '')))}</p>"
-        f"<p>当前场景：{escape(str(session.get('scene_id', '')))}</p>"
-        f"<h2>当前候选</h2><pre>{candidate}</pre>"
-        f"<h2>已采纳正文</h2><pre>{adopted}</pre>"
-        "</body></html>"
+def _render_project(project_id: str) -> str:
+    safe_id = escape(project_id)
+    body = (
+        f"<div class='page' data-project-id='{safe_id}'>"
+        "<header class='page-header'>"
+        f"<div><h1>项目：{safe_id}</h1>"
+        "<p class='subtitle'>"
+        f"<span id='meta-title'></span> · <span id='meta-style'></span> · "
+        "场景 <span id='scene-id'></span>"
+        "</p></div>"
+        "<a href='/'>返回首页</a>"
+        "</header>"
+        "<div id='status-message' class='status'></div>"
+        "<div class='layout'>"
+        "<main>"
+        "<section class='panel'>"
+        "<h2>对话</h2>"
+        "<div id='messages' class='messages'><p class='hint'>加载中…</p></div>"
+        "<label for='send-input'>发送消息（Ctrl+Enter 发送）</label>"
+        "<textarea id='send-input' placeholder='继续写、讨论设定或提出修改…'></textarea>"
+        "<div class='button-row'>"
+        "<button id='send-button' type='button' class='primary' data-action='send'>发送</button>"
+        "</div>"
+        "</section>"
+        "<section class='panel'>"
+        "<h2>候选与采纳</h2>"
+        "<label for='adopt-text'>采纳正文（可编辑）</label>"
+        "<textarea id='adopt-text'></textarea>"
+        "<div class='button-row'>"
+        "<button type='button' data-action='adopt-prepare'>预览 Canon 变更</button>"
+        "<button type='button' class='primary' data-action='adopt-commit-yes'>采纳并接受设定</button>"
+        "<button type='button' data-action='adopt-commit-no'>采纳但拒绝设定</button>"
+        "</div>"
+        "<pre id='adopt-preview' class='pre-block hidden'></pre>"
+        "<h3>当前场景已采纳正文</h3>"
+        "<pre id='adopted-prose' class='pre-block'></pre>"
+        "</section>"
+        "<section class='panel'>"
+        "<h2>设定修正</h2>"
+        "<label for='fix-intent'>修正意图</label>"
+        "<textarea id='fix-intent' placeholder='例如：把角色名字改成…'></textarea>"
+        "<div class='button-row'>"
+        "<button type='button' data-action='fix-prepare'>预览修正</button>"
+        "<button type='button' class='primary' data-action='fix-commit-yes'>确认修正并接受设定</button>"
+        "<button type='button' data-action='fix-commit-no'>确认修正但拒绝设定</button>"
+        "</div>"
+        "<pre id='fix-preview' class='pre-block hidden'></pre>"
+        "</section>"
+        "<section id='scene-panel' class='panel hidden'>"
+        "<h2>场景切换</h2>"
+        "<div id='scene-reconcile'></div>"
+        "<div id='scene-cold' class='hidden'></div>"
+        "<label for='scene-summary'>场景摘要（可编辑）</label>"
+        "<textarea id='scene-summary'></textarea>"
+        "<div class='button-row'>"
+        "<button type='button' data-action='scene-reconcile-yes'>接受 Hot Canon</button>"
+        "<button type='button' data-action='scene-reconcile-no'>拒绝 Hot Canon</button>"
+        "<button type='button' class='primary' data-action='scene-commit-yes'>接受 Cold 并切换</button>"
+        "<button type='button' data-action='scene-commit-no'>拒绝 Cold 并切换</button>"
+        "</div>"
+        "</section>"
+        "<section class='panel'>"
+        "<h2>场景切换入口</h2>"
+        "<p class='hint'>完成至少一次采纳后，可准备切换到下一场景。</p>"
+        "<div class='button-row'>"
+        "<button type='button' data-action='scene-prepare'>准备切换场景</button>"
+        "</div>"
+        "</section>"
+        "</main>"
+        "<aside>"
+        "<section class='panel'>"
+        "<h2>会话状态</h2>"
+        "<p>距上次采纳轮数：<span id='turns-since-adopt'>0</span></p>"
+        "<p id='budget-notice' class='hint'></p>"
+        "</section>"
+        "<section class='panel'>"
+        "<h2>Meta</h2>"
+        "<pre id='meta-json' class='pre-block json-block'></pre>"
+        "</section>"
+        "<section class='panel'>"
+        "<h2>Hot Canon</h2>"
+        "<pre id='canon-json' class='pre-block json-block'></pre>"
+        "</section>"
+        "<section class='panel'>"
+        "<h2>Synopsis</h2>"
+        "<pre id='synopsis-json' class='pre-block json-block'></pre>"
+        "</section>"
+        "<section class='panel'>"
+        "<h2>Manuscript</h2>"
+        "<pre id='manuscript-text' class='pre-block json-block'></pre>"
+        "</section>"
+        "</aside>"
+        "</div>"
+        "</div>"
+    )
+    return _page_shell(
+        title=f"LNAgent · {project_id}",
+        body=body,
+        scripts=["/static/common.js", "/static/project.js"],
     )
