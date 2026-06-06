@@ -41,7 +41,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             headers = [
                 ("Content-Type", response.content_type),
                 ("Cache-Control", "no-cache"),
-                ("Connection", "keep-alive"),
                 ("X-Accel-Buffering", "no"),
             ]
             start_response(status_line, headers)

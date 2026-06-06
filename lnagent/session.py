@@ -140,14 +140,33 @@ class NovelSession:
             yield reply
             return
 
-        parts: list[str] = []
-        for chunk in stream(messages):
-            token = extract_stream_chunk_content(chunk)
-            if not token:
-                continue
-            parts.append(token)
-            yield token
-        self._complete_send(user_input, "".join(parts))
+        assembled = ""
+        completed = False
+        try:
+            for chunk in stream(messages):
+                token = extract_stream_chunk_content(chunk)
+                if not token:
+                    continue
+                if token.startswith(assembled) and len(token) > len(assembled):
+                    delta = token[len(assembled) :]
+                    assembled = token
+                else:
+                    delta = token
+                    assembled += token
+                if not delta:
+                    continue
+                yield delta
+            if not assembled:
+                reply = self._invoke_reply(messages)
+                self._complete_send(user_input, reply)
+                yield reply
+                completed = True
+                return
+            self._complete_send(user_input, assembled)
+            completed = True
+        finally:
+            if not completed and assembled:
+                self._complete_send(user_input, assembled)
 
     def _prepare_send_messages(self, user_input: str) -> list:
         canon = self._store.load_canon()

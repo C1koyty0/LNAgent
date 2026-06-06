@@ -166,9 +166,12 @@ document.addEventListener("DOMContentLoaded", () => {
       throw new Error(streamError);
     }
 
-    finishStreamingMessage(assistantNode, donePayload?.reply || streamedText);
+    finishStreamingMessage(
+      assistantNode,
+      preferLongerText(streamedText, donePayload?.reply),
+    );
     updateSceneSuggestion(donePayload?.scene_switch_suggestion);
-    adoptText.value = donePayload?.last_candidate || streamedText;
+    adoptText.value = preferLongerText(streamedText, donePayload?.last_candidate);
 
     if (donePayload?.scene_switch_suggestion?.should_suggest) {
       setStatus(
@@ -451,7 +454,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return `
       <article class="message ${roleClass}${streamingClass}">
         <div class="message-role">${escapeHtml(roleLabel)}</div>
-        <div class="message-body">${escapeHtml(content)}</div>
+        <div class="message-body">${renderMarkdown(content)}</div>
       </article>
     `;
   }
@@ -469,19 +472,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateMessageBody(node, content) {
-    if (!node) {
-      return;
-    }
-    node.textContent = content;
+    setMessageBody(node, content, { markdown: false, streaming: true });
     const container = document.getElementById("messages");
     container.scrollTop = container.scrollHeight;
   }
 
   function finishStreamingMessage(node, content) {
-    if (!node) {
-      return;
-    }
-    node.textContent = content;
+    setMessageBody(node, content, { markdown: true, streaming: false });
     node.closest(".message")?.classList.remove("streaming");
   }
 });

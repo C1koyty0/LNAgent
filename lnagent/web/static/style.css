@@ -232,6 +232,94 @@ button:disabled {
   margin-bottom: 0.35rem;
 }
 
+.message-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.message-body.md-body {
+  white-space: normal;
+}
+
+.message-body.md-body :is(h1, h2, h3, p, ul, ol, pre, hr) {
+  margin: 0.45rem 0;
+}
+
+.message-body.md-body :is(h1, h2, h3):first-child {
+  margin-top: 0;
+}
+
+.message-body.md-body h1 {
+  font-size: 1.15rem;
+}
+
+.message-body.md-body h2 {
+  font-size: 1.05rem;
+}
+
+.message-body.md-body h3 {
+  font-size: 0.98rem;
+}
+
+.message-body.md-body ul,
+.message-body.md-body ol {
+  padding-left: 1.25rem;
+}
+
+.message-body.md-body hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.message-body.md-body .md-pre {
+  margin: 0.5rem 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.55);
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.message-body.md-body code.md-code,
+.message-body.md-body .md-pre code {
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 0.88em;
+}
+
+.message-body.md-body code.md-code {
+  padding: 0.05rem 0.25rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.message-body.md-body .md-table-wrap {
+  margin: 0.55rem 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.message-body.md-body .md-table {
+  width: 100%;
+  min-width: 280px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.message-body.md-body .md-table th,
+.message-body.md-body .md-table td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.message-body.md-body .md-table th {
+  background: rgba(255, 255, 255, 0.65);
+  font-weight: 700;
+}
+
 .pre-block {
   white-space: pre-wrap;
   word-break: break-word;

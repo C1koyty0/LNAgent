@@ -252,6 +252,32 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertEqual(state_payload["last_candidate"], "流式正文")
             self.assertEqual(len(state_payload["messages"]), 2)
 
+    def test_send_stream_handles_cumulative_chunks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(
+                Path(tmp),
+                replies=["累积流式正文"],
+                model_factory=lambda _project_id: _CumulativeReplyModel(["累积流式正文"]),
+            )
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            response = client.post(
+                "/api/projects/demo/send/stream",
+                json={"text": "请续写"},
+            )
+            self.assertEqual(response.status_code, 200)
+            body = response.get_data(as_text=True)
+            self.assertNotIn("累累积", body)
+
+            state_response = client.get("/api/projects/demo/session")
+            state_payload = state_response.get_json()
+            self.assertEqual(state_payload["last_candidate"], "累积流式正文")
+            self.assertEqual(
+                state_payload["messages"][-1]["content"],
+                "累积流式正文",
+            )
+
     def test_create_project_via_api(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app = _build_app(Path(tmp), create_demo=False)
@@ -281,6 +307,27 @@ class AppServiceTest(unittest.TestCase):
     def test_extract_stream_chunk_content_reads_string_and_chunk(self) -> None:
         self.assertEqual(extract_stream_chunk_content(_FakeChunk("片段")), "片段")
         self.assertEqual(extract_stream_chunk_content("直接文本"), "直接文本")
+        self.assertEqual(
+            extract_stream_chunk_content(
+                _FakeChunk([{"type": "output_text", "text": "输出"}])
+            ),
+            "输出",
+        )
+        self.assertEqual(
+            extract_stream_chunk_content(_FakeChunk([{"text": "裸字段"}])),
+            "裸字段",
+        )
+        self.assertEqual(
+            extract_stream_chunk_content(
+                _FakeChunk(
+                    [
+                        {"type": "text", "text": "甲"},
+                        {"type": "text", "text": "乙"},
+                    ]
+                )
+            ),
+            "甲乙",
+        )
 
     def test_open_project_reuses_same_session_instance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -331,6 +378,15 @@ class _ReplyModel:
             yield _FakeChunk(char)
 
 
+class _CumulativeReplyModel(_ReplyModel):
+    def stream(self, messages: list[object]):
+        reply = self.invoke(messages).content
+        cumulative = ""
+        for char in reply:
+            cumulative += char
+            yield _FakeChunk(cumulative)
+
+
 class _StubCanonExtractor:
     def __init__(self, canon_name: str = "莉亚", fix_canon_name: str | None = None) -> None:
         self._canon_name = canon_name
@@ -369,6 +425,7 @@ def _build_app(
     canon_name: str = "莉亚",
     fix_canon_name: str | None = None,
     create_demo: bool = True,
+    model_factory=None,
 ):
     service = _build_service(
         root,
@@ -376,6 +433,7 @@ def _build_app(
         canon_name=canon_name,
         fix_canon_name=fix_canon_name,
         create_demo=create_demo,
+        model_factory=model_factory,
     )
     return create_web_app(service)
 
@@ -387,12 +445,14 @@ def _build_service(
     canon_name: str = "莉亚",
     fix_canon_name: str | None = None,
     create_demo: bool = True,
+    model_factory=None,
 ) -> AppService:
     projects_dir = root / "projects"
+    factory = model_factory or (lambda _project_id: _ReplyModel(replies))
     service = AppService(
         projects_dir=projects_dir,
         settings_factory=lambda: Settings(api_key="test-key", model="fake-model", projects_dir=projects_dir),
-        model_factory=lambda project_id: _ReplyModel(replies),
+        model_factory=factory,
         canon_extractor_factory=lambda model: _StubCanonExtractor(canon_name, fix_canon_name),
         cold_extractor_factory=lambda model: _StubColdExtractor(),
     )

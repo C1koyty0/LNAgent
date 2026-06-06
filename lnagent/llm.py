@@ -27,9 +27,20 @@ def extract_stream_chunk_content(chunk: object) -> str:
         for block in content:
             if isinstance(block, str):
                 parts.append(block)
-            elif isinstance(block, dict) and block.get("type") == "text":
-                parts.append(str(block.get("text", "")))
+            elif isinstance(block, dict):
+                text = block.get("text")
+                if text is not None:
+                    parts.append(str(text))
+                    continue
+                if block.get("type") in {"text", "output_text", "text_delta"}:
+                    parts.append(str(block.get("text", "")))
         return "".join(parts)
     if content is None:
+        additional = getattr(chunk, "additional_kwargs", None)
+        if isinstance(additional, dict):
+            for key in ("reasoning_content", "content"):
+                value = additional.get(key)
+                if isinstance(value, str) and value:
+                    return value
         return ""
     return str(content)
