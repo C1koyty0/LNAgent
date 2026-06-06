@@ -7,6 +7,7 @@ from typing import Protocol
 
 from langchain_core.language_models import BaseChatModel
 
+from lnagent.llm import extract_stream_chunk_content
 from lnagent.memory.canon_extractor import (
     CanonExtractor,
     format_canon_diff,
@@ -126,6 +127,29 @@ class NovelSession:
         return len(self._buffer.adopt_stack) > 0
 
     def send(self, user_input: str) -> str:
+        messages = self._prepare_send_messages(user_input)
+        return self._complete_send(user_input, self._invoke_reply(messages))
+
+    def stream_send(self, user_input: str):
+        """逐块产出模型回复文本，并在结束时写入会话内存状态。"""
+        messages = self._prepare_send_messages(user_input)
+        stream = getattr(self._model, "stream", None)
+        if not callable(stream):
+            reply = self._invoke_reply(messages)
+            self._complete_send(user_input, reply)
+            yield reply
+            return
+
+        parts: list[str] = []
+        for chunk in stream(messages):
+            token = extract_stream_chunk_content(chunk)
+            if not token:
+                continue
+            parts.append(token)
+            yield token
+        self._complete_send(user_input, "".join(parts))
+
+    def _prepare_send_messages(self, user_input: str) -> list:
         canon = self._store.load_canon()
         synopsis = self._store.load_synopsis()
         messages = self._prompt_builder.build(
@@ -143,10 +167,14 @@ class NovelSession:
             "last_budget_report",
             BudgetReport(),
         )
+        return messages
+
+    def _invoke_reply(self, messages: list) -> str:
         response = self._model.invoke(messages)
         content = response.content
-        reply = content if isinstance(content, str) else str(content)
+        return content if isinstance(content, str) else str(content)
 
+    def _complete_send(self, user_input: str, reply: str) -> str:
         self._buffer.append_user(user_input)
         self._buffer.append_assistant(reply)
         self._buffer.set_candidate(reply)

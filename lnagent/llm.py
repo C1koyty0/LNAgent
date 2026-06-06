@@ -15,3 +15,21 @@ def create_chat_model(settings: Settings) -> BaseChatModel:
         model_provider="openai",
         **kwargs,
     )
+
+
+def extract_stream_chunk_content(chunk: object) -> str:
+    """从 LangChain stream chunk 中提取文本增量。"""
+    content = getattr(chunk, "content", chunk)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text", "")))
+        return "".join(parts)
+    if content is None:
+        return ""
+    return str(content)

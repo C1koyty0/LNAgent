@@ -35,6 +35,22 @@ class SimpleResponse:
         return json.loads(self.body.decode("utf-8"))
 
 
+class StreamResponse:
+    def __init__(
+        self,
+        chunks: Any,
+        *,
+        status: int = 200,
+        content_type: str = "text/event-stream; charset=utf-8",
+    ) -> None:
+        self.status_code = status
+        self.content_type = content_type
+        self._chunks = chunks
+
+    def iter_body(self):
+        yield from self._chunks
+
+
 class SimpleTestClient:
     def __init__(self, app: "SimpleWebApp") -> None:
         self._app = app
@@ -62,7 +78,14 @@ class SimpleTestClient:
             "CONTENT_LENGTH": content_length,
             "CONTENT_TYPE": content_type,
         }
-        return self._app.handle_wsgi(environ)
+        return _materialize_response(self._app.handle_wsgi(environ))
+
+
+def _materialize_response(response: SimpleResponse | StreamResponse) -> SimpleResponse:
+    if isinstance(response, StreamResponse):
+        body = b"".join(response.iter_body())
+        return SimpleResponse(body, status=response.status_code, content_type=response.content_type)
+    return response
 
 
 class SimpleWebApp:
@@ -72,7 +95,7 @@ class SimpleWebApp:
     def test_client(self) -> SimpleTestClient:
         return SimpleTestClient(self)
 
-    def handle_wsgi(self, environ: dict[str, Any]) -> SimpleResponse:
+    def handle_wsgi(self, environ: dict[str, Any]) -> SimpleResponse | StreamResponse:
         method = environ.get("REQUEST_METHOD", "GET")
         path = environ.get("PATH_INFO", "/")
         try:
@@ -89,7 +112,7 @@ class SimpleWebApp:
         except ValueError as exc:
             return self._json_response({"error": str(exc)}, status=400)
 
-    def _handle_api(self, method: str, path: str, environ: dict[str, Any]) -> SimpleResponse:
+    def _handle_api(self, method: str, path: str, environ: dict[str, Any]) -> SimpleResponse | StreamResponse:
         payload = _read_json_body(environ)
         if method == "GET" and path == "/api/projects":
             return self._json_response(
@@ -148,6 +171,10 @@ class SimpleWebApp:
                     project_id,
                     str(output_path) if output_path else None,
                 )
+            )
+        if method == "POST" and suffix == "/send/stream":
+            return self._sse_response(
+                self._service.stream_message(project_id, str(payload.get("text", "")))
             )
         if method == "POST" and suffix == "/send":
             return self._json_response(self._service.send_message(project_id, payload.get("text", "")))
@@ -215,6 +242,15 @@ class SimpleWebApp:
     def _html_response(html: str, *, status: int = 200) -> SimpleResponse:
         return SimpleResponse(html.encode("utf-8"), status=status)
 
+    def _sse_response(self, events: Any) -> StreamResponse:
+        def chunks():
+            for event in events:
+                name = str(event.get("event", "message"))
+                payload = json.dumps(event.get("data", {}), ensure_ascii=False)
+                yield _format_sse(name, payload)
+
+        return StreamResponse(chunks())
+
 
 def create_web_app(service: AppService) -> SimpleWebApp:
     return SimpleWebApp(service)
@@ -229,6 +265,10 @@ def _match_project_api(path: str) -> tuple[str | None, str]:
         project_id, suffix = tail.split("/", 1)
         return project_id, "/" + suffix
     return tail, ""
+
+
+def _format_sse(event: str, data: str) -> bytes:
+    return f"event: {event}\ndata: {data}\n\n".encode("utf-8")
 
 
 def _read_json_body(environ: dict[str, Any]) -> dict:

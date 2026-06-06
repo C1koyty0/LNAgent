@@ -27,6 +27,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   actionButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (button.dataset.action === "send") {
+        sendMessage().catch((error) => {
+          setStatus(statusEl, error.message, "error");
+        });
+        return;
+      }
       runAction(button.dataset.action).catch((error) => {
         setStatus(statusEl, error.message, "error");
       });
@@ -36,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   sendInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
-      runAction("send").catch((error) => {
+      sendMessage().catch((error) => {
         setStatus(statusEl, error.message, "error");
       });
     }
@@ -73,9 +79,7 @@ document.addEventListener("DOMContentLoaded", () => {
       async () => {
         setStatus(statusEl, "", "info");
         try {
-          if (action === "send") {
-            await sendMessage();
-          } else if (action === "adopt-prepare") {
+          if (action === "adopt-prepare") {
             await prepareAdopt();
           } else if (action === "adopt-commit-yes") {
             await commitAdopt(true);
@@ -121,24 +125,59 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!text) {
       throw new Error("请输入消息内容。");
     }
-    setPageLoading(loadingEl, loadingTextEl, true, "正在生成回复…");
+
+    setBusy(actionButtons, true);
     setStatus(statusEl, "正在生成回复…", "info");
-    const payload = await apiRequest(
-      "POST",
-      `/api/projects/${encodeURIComponent(projectId)}/send`,
-      { text },
-    );
     sendInput.value = "";
-    updateSceneSuggestion(payload.scene_switch_suggestion);
-    if (payload.scene_switch_suggestion?.should_suggest) {
+
+    const userNode = appendMessage("user", text);
+    const assistantNode = appendMessage("assistant", "", { streaming: true });
+    let streamedText = "";
+    let donePayload = null;
+    let streamError = null;
+
+    try {
+      await streamPost(
+        `/api/projects/${encodeURIComponent(projectId)}/send/stream`,
+        { text },
+        {
+          onToken(token) {
+            streamedText += token;
+            updateMessageBody(assistantNode, streamedText);
+          },
+          onDone(payload) {
+            donePayload = payload;
+          },
+          onError(message) {
+            streamError = message;
+          },
+        },
+      );
+    } finally {
+      setBusy(actionButtons, false);
+    }
+
+    if (streamError) {
+      assistantNode.closest(".message")?.remove();
+      userNode.closest(".message")?.remove();
+      sendInput.value = text;
+      throw new Error(streamError);
+    }
+
+    finishStreamingMessage(assistantNode, donePayload?.reply || streamedText);
+    updateSceneSuggestion(donePayload?.scene_switch_suggestion);
+    adoptText.value = donePayload?.last_candidate || streamedText;
+
+    if (donePayload?.scene_switch_suggestion?.should_suggest) {
       setStatus(
         statusEl,
-        `回复已返回。场景切换建议：${payload.scene_switch_suggestion.reason}`,
+        `回复已返回。场景切换建议：${donePayload.scene_switch_suggestion.reason}`,
         "info",
       );
     } else {
       setStatus(statusEl, "回复已返回。", "info");
     }
+
     await refreshAll();
   }
 
@@ -395,17 +434,49 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     container.innerHTML = messages
-      .map((message) => {
-        const roleClass = message.role === "user" ? "user" : "assistant";
-        const roleLabel = message.role === "user" ? "作者" : "助手";
-        return `
-          <article class="message ${roleClass}">
-            <div class="message-role">${escapeHtml(roleLabel)}</div>
-            <div>${escapeHtml(message.content)}</div>
-          </article>
-        `;
-      })
+      .map((message) => renderMessageHtml(message.role, message.content))
       .join("");
     container.scrollTop = container.scrollHeight;
+  }
+
+  function renderMessageHtml(role, content, options = {}) {
+    const roleClass = role === "user" ? "user" : "assistant";
+    const roleLabel = role === "user" ? "作者" : "助手";
+    const streamingClass = options.streaming ? " streaming" : "";
+    return `
+      <article class="message ${roleClass}${streamingClass}">
+        <div class="message-role">${escapeHtml(roleLabel)}</div>
+        <div class="message-body">${escapeHtml(content)}</div>
+      </article>
+    `;
+  }
+
+  function appendMessage(role, content, options = {}) {
+    const container = document.getElementById("messages");
+    const hint = container.querySelector(".hint");
+    if (hint) {
+      hint.remove();
+    }
+    container.insertAdjacentHTML("beforeend", renderMessageHtml(role, content, options));
+    const node = container.lastElementChild?.querySelector(".message-body");
+    container.scrollTop = container.scrollHeight;
+    return node;
+  }
+
+  function updateMessageBody(node, content) {
+    if (!node) {
+      return;
+    }
+    node.textContent = content;
+    const container = document.getElementById("messages");
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function finishStreamingMessage(node, content) {
+    if (!node) {
+      return;
+    }
+    node.textContent = content;
+    node.closest(".message")?.classList.remove("streaming");
   }
 });

@@ -11,6 +11,7 @@ from lnagent.app_service import AppService
 from lnagent.config import Settings
 from lnagent.memory.cold_archive import ColdProposal
 from lnagent.memory.models import HotCanon, NovelMeta
+from lnagent.llm import extract_stream_chunk_content
 from lnagent.web.app import create_web_app
 
 
@@ -226,6 +227,28 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertEqual(manuscripts_payload["current_scene_id"], "scene_001")
             self.assertEqual(len(manuscripts_payload["scenes"]), 1)
 
+    def test_send_stream_sse_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(Path(tmp), replies=["流式正文"])
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            response = client.post(
+                "/api/projects/demo/send/stream",
+                json={"text": "请续写"},
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("text/event-stream", response.content_type)
+            body = response.get_data(as_text=True)
+            self.assertIn("event: token", body)
+            self.assertIn("event: done", body)
+            self.assertIn("流式正文", body)
+
+            state_response = client.get("/api/projects/demo/session")
+            state_payload = state_response.get_json()
+            self.assertEqual(state_payload["last_candidate"], "流式正文")
+            self.assertEqual(len(state_payload["messages"]), 2)
+
     def test_create_project_via_api(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app = _build_app(Path(tmp), create_demo=False)
@@ -252,6 +275,10 @@ class WebAppIntegrationTest(unittest.TestCase):
 
 
 class AppServiceTest(unittest.TestCase):
+    def test_extract_stream_chunk_content_reads_string_and_chunk(self) -> None:
+        self.assertEqual(extract_stream_chunk_content(_FakeChunk("片段")), "片段")
+        self.assertEqual(extract_stream_chunk_content("直接文本"), "直接文本")
+
     def test_open_project_reuses_same_session_instance(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             service = _build_service(Path(tmp))
@@ -277,6 +304,11 @@ class _FakeResponse:
         self.content = content
 
 
+class _FakeChunk:
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
 class _ReplyModel:
     def __init__(self, replies: list[str] | None = None) -> None:
         self._replies = list(replies or ["模型回复"])
@@ -289,6 +321,11 @@ class _ReplyModel:
         else:
             content = self._replies[-1]
         return _FakeResponse(content)
+
+    def stream(self, messages: list[object]):
+        reply = self.invoke(messages).content
+        for char in reply:
+            yield _FakeChunk(char)
 
 
 class _StubCanonExtractor:

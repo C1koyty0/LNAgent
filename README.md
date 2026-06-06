@@ -194,6 +194,7 @@ print(reply)
 - [x] `/export` 全书导出与 `--meta` JSON 开书（Phase 6）
 - [x] 第一版 Web/API（项目列表、会话接口、最小页面壳）
 - [x] Web 前端 MVP 完善（undo/export/config、结构化侧栏、loading）
+- [x] Web 流式 send（SSE token 推送）
 - [ ] 可配置的文风与叙事模板
 - [ ] 向量 RAG 检索（Phase 7+，MVP 不做）
 
@@ -202,7 +203,7 @@ print(reply)
 - [记忆架构](docs/features/memory-architecture.md) — 设计共识与 CLI 约定
 - [待讨论项](docs/features/open-questions.md) — 尚未拍板的问题 backlog
 - [记忆 MVP 计划](docs/features/memory-mvp-plan.md) — 分阶段实现路线（Phase 0–6 已完成）
-- [Web/API 第一版实施计划](docs/features/web-api-implementation-plan.md) — W0–W6 已实现，含阶段验收与限制记录
+- [Web/API 第一版实施计划](docs/features/web-api-implementation-plan.md) — W0–W7 已实现，含阶段验收与限制记录
 
 ## 许可证
 

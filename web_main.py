@@ -9,7 +9,7 @@ from wsgiref.simple_server import make_server
 
 from lnagent.app_service import AppService
 from lnagent.config import Settings
-from lnagent.web.app import create_web_app
+from lnagent.web.app import StreamResponse, create_web_app
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -37,6 +37,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     def wsgi_app(environ, start_response):
         response = app.handle_wsgi(environ)
         status_line = f"{response.status_code} {_reason_phrase(response.status_code)}"
+        if isinstance(response, StreamResponse):
+            headers = [
+                ("Content-Type", response.content_type),
+                ("Cache-Control", "no-cache"),
+                ("Connection", "keep-alive"),
+                ("X-Accel-Buffering", "no"),
+            ]
+            start_response(status_line, headers)
+            return response.iter_body()
+
         headers = [
             ("Content-Type", response.content_type),
             ("Content-Length", str(len(response.body))),

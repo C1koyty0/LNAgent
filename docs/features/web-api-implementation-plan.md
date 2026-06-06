@@ -406,6 +406,32 @@ CLI 交互函数适合终端，不适合 HTTP。
 
 ---
 
+## Phase W7：流式输出（SSE）
+
+**目标**：Web 发消息时逐 token 展示模型回复，改善长回复等待体验。
+
+**做什么**：
+
+- `NovelSession.stream_send()` 基于 LangChain `model.stream()`
+- `POST /api/projects/{id}/send/stream` 返回 SSE（`token` / `done` / `error` 事件）
+- WSGI 支持 chunked 流式响应
+- 项目页默认走流式发送并实时更新对话区
+
+**任务清单**：
+
+- [x] W7.1 会话层 stream_send 与 chunk 提取
+- [x] W7.2 AppService + SSE API + web_main 流式 WSGI
+- [x] W7.3 前端 streamPost 与逐字展示
+- [x] W7.4 回归测试
+
+**验收**：
+
+- [x] 流式接口完成后 session 状态与同步 `send` 一致
+- [x] 保留原 `POST /send` 供 API 客户端使用
+- [x] `python -m unittest` 通过
+
+---
+
 ## 下一阶段（不在本计划内）
 
 Web/API 第一版完成后，再考虑：
@@ -422,5 +448,6 @@ Web/API 第一版完成后，再考虑：
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-06 | W7：Web 流式 send（SSE） |
 | 2026-06-06 | W6：MVP 完善（CLI parity API + 项目页体验 polish） |
 | 2026-06-04 | 初稿：将 Web/API 第一版拆成 W0–W5，要求每阶段包含目标、效果、验收与可追踪状态；用于跨 session 持续追踪进度 |

@@ -209,6 +209,18 @@ button:disabled {
   background: #faf7f2;
 }
 
+.message.streaming .message-body::after {
+  content: "▍";
+  margin-left: 0.1rem;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 .message-role {
   font-size: 0.78rem;
   font-weight: 700;
