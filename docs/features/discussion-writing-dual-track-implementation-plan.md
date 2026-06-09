@@ -74,6 +74,13 @@
 - discussion 数据可独立读写，不混入现有 `session.json`
 - brief 结构稳定，可供 writing prompt 注入
 
+**当前已确认的 D0 约束**：
+
+- 复用现有 `ChatMessage`，**不新增** `DiscussionMessage`
+- `DiscussionBrief` 保留 `open_questions`
+- discussion 路径采用：`projects/<id>/discussion/scene_xxx/messages.json` 与 `brief.json`
+- **不修改** `SceneSession` 结构，discussion 不写入 `session.json`
+
 **建议文件**：
 
 - Modify: `lnagent/memory/models.py`
@@ -81,22 +88,78 @@
 - Create: `tests/test_discussion_store.py`
 - Update docs: `docs/features/discussion-writing-dual-track-design.md`
 
+**实现清单**：
+
+1. 在 `lnagent/memory/models.py` 新增 `DiscussionBrief` dataclass：
+   - `scene_id: str`
+   - `todo_items: list[str]`
+   - `constraints: list[str]`
+   - `open_questions: list[str]`
+   - `dirty: bool`
+   - `updated_at: str`
+   - 需要实现 `to_dict()` / `from_dict()` / `empty(scene_id)`
+2. 不新增 `DiscussionMessage`；discussion raw chat 直接复用 `ChatMessage` 的 `role/content` 结构。
+3. 在 `JsonMemoryStore` 中新增 discussion 路径辅助方法：
+   - `_discussion_root()`
+   - `_discussion_scene_dir(scene_id)`
+   - `_discussion_messages_path(scene_id)`
+   - `_discussion_brief_path(scene_id)`
+4. 在 `ensure_project_layout()` 中创建 `discussion/` 根目录，但**不预创建** `scene_001/` 子目录。
+5. 新增 discussion messages store API：
+   - `load_discussion_messages(scene_id) -> list[ChatMessage]`
+   - `save_discussion_messages(scene_id, messages)`
+   - `append_discussion_message(scene_id, message)`
+   - `clear_discussion_messages(scene_id)`
+6. 新增 discussion brief store API：
+   - `load_discussion_brief(scene_id) -> DiscussionBrief`
+   - `save_discussion_brief(scene_id, brief)`
+   - `clear_discussion_brief(scene_id)`
+7. 新增 scene 级 discussion 清理入口：
+   - `clear_discussion_scene(scene_id)`
+8. 明确默认行为：
+   - `load_discussion_messages()` 在文件不存在时返回 `[]`
+   - `load_discussion_brief()` 在文件不存在时返回 `DiscussionBrief.empty(scene_id)`
+   - `clear_*()` 在目标不存在时静默成功
+9. discussion 文件格式约定：
+   - `messages.json` 为 `ChatMessage.to_dict()` 数组
+   - `brief.json` 为结构化对象，包含 `todo_items / constraints / open_questions / dirty / updated_at`
+10. `updated_at` 在 D0 仅作为数据字段保存，由调用方传入；store 层不负责生成时间。
+11. D0 **不涉及**：
+   - `NovelSession` 语义拆轨
+   - prompt builder 改造
+   - API / 前端接线
+   - adopt / undo / scene switch 联动
+
+**测试清单**：
+
+- [ ] T0.1 `ensure_project_layout()` 创建 `discussion/` 根目录
+- [ ] T0.2 `load_discussion_messages()` 缺省返回空列表
+- [ ] T0.3 discussion messages round trip
+- [ ] T0.4 `append_discussion_message()` 保留已有消息顺序
+- [ ] T0.5 `load_discussion_brief()` 缺省返回空 brief
+- [ ] T0.6 discussion brief round trip
+- [ ] T0.7 `clear_discussion_messages()` 只清 raw chat，不影响 brief
+- [ ] T0.8 `clear_discussion_brief()` 只清 brief，不影响 messages
+- [ ] T0.9 `clear_discussion_scene()` 清空当前 scene 的 discussion 全部状态
+
 **任务清单**：
 
-- [ ] D0.1 定义 `DiscussionBrief` / `DiscussionMessage` 数据结构
-- [ ] D0.2 设计 `projects/<id>/discussion/scene_xxx/` 持久化布局
+- [ ] D0.1 定义 `DiscussionBrief` 数据结构
+- [ ] D0.2 设计并实现 `projects/<id>/discussion/scene_xxx/` 持久化布局
 - [ ] D0.3 在 store 中增加 discussion read/write/clear 接口
 - [ ] D0.4 为 discussion store 编写单元测试
 
 **验收**：
 
 - [ ] discussion raw chat 与 brief 能独立读写
-- [ ] 不修改现有 writing / canon / synopsis 持久化格式
-- [ ] 给定 scene_id，可定位 discussion 数据目录
+- [ ] `session.json` 与现有 writing / canon / synopsis 持久化格式保持不变
+- [ ] 给定 `scene_id`，可定位 discussion 数据目录
+- [ ] discussion 清理行为不影响 writing 主路径
 
 **验收命令（建议）**：
 
 - `python -m unittest tests.test_discussion_store -v`
+- `python -m unittest tests.test_memory_store -v`
 
 ---
 
