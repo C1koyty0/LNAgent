@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -278,6 +279,38 @@ class WebAppIntegrationTest(unittest.TestCase):
                 "累积流式正文",
             )
 
+    def test_send_stream_continues_after_consumer_stops_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(
+                Path(tmp),
+                replies=["完整流式正文"],
+                model_factory=lambda _project_id: _InterruptibleReplyModel(["完整流式正文"]),
+            )
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            payload = json.dumps({"text": "请续写"}, ensure_ascii=False).encode("utf-8")
+            response = app.handle_wsgi(
+                {
+                    "REQUEST_METHOD": "POST",
+                    "PATH_INFO": "/api/projects/demo/send/stream",
+                    "QUERY_STRING": "",
+                    "wsgi.input": __import__("io").BytesIO(payload),
+                    "CONTENT_LENGTH": str(len(payload)),
+                    "CONTENT_TYPE": "application/json",
+                }
+            )
+
+            iterator = response.iter_body()
+            next(iterator)
+            iterator.close()
+            time.sleep(0.05)
+
+            state_response = client.get("/api/projects/demo/session")
+            state_payload = state_response.get_json()
+            self.assertEqual(state_payload["last_candidate"], "完整流式正文")
+            self.assertEqual(state_payload["messages"][-1]["content"], "完整流式正文")
+
     def test_create_project_via_api(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app = _build_app(Path(tmp), create_demo=False)
@@ -385,6 +418,13 @@ class _CumulativeReplyModel(_ReplyModel):
         for char in reply:
             cumulative += char
             yield _FakeChunk(cumulative)
+
+
+class _InterruptibleReplyModel(_ReplyModel):
+    def stream(self, messages: list[object]):
+        reply = self.invoke(messages).content
+        for char in reply:
+            yield _FakeChunk(char)
 
 
 class _StubCanonExtractor:

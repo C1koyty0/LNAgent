@@ -121,6 +121,8 @@ pwsh -File scripts/start-web.ps1 -Host 0.0.0.0 -Port 9000 -ProjectsDir C:\path\t
 - 启动时不要求预先传入 `project_id`
 - 通过 `project_id` 路径参数访问具体项目
 - 保留显式确认语义：`adopt`、`fix`、`scene switch` 仍分为 prepare / commit
+- `POST /api/projects/<id>/send/stream` 支持 SSE 流式返回
+- SSE 前端断连后，后端仍继续完成本轮 LLM 生成；重新拉取 `session` 可看到完整 `last_candidate`
 - 仍以 `JsonMemoryStore` 为持久化真源
 
 已知限制：
@@ -128,6 +130,7 @@ pwsh -File scripts/start-web.ps1 -Host 0.0.0.0 -Port 9000 -ProjectsDir C:\path\t
 - 暂无鉴权 / 多用户隔离
 - 当前为最小页面壳，不包含富文本编辑体验
 - 采用进程内 Session Registry，重启 Web 进程后未 checkpoint 的内存态不会保留
+- 当前后端尚未区分“讨论模式 / 写作模式”的独立 API 或会话状态；`send` 仍走同一条会话与 prompt 路径，仅在 system prompt 中约束“讨论输出非正文”
 - 暂未引入 SQLite 查询层或 RAG-lite
 
 ### CLI 命令

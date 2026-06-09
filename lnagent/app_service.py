@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import queue
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from collections.abc import Callable, Iterator
+from threading import Thread
 from typing import Any
 
 from lnagent.bootstrap import build_project_runtime
@@ -33,6 +35,12 @@ from lnagent.session_registry import SessionHandle, SessionRegistry
 class ScenePrepareState:
     project_id: str
     proposal: ColdProposal
+
+
+@dataclass(frozen=True)
+class _QueueEvent:
+    payload: dict[str, Any] | None = None
+    done: bool = False
 
 
 class AppService:
@@ -211,12 +219,33 @@ class AppService:
     def stream_message(self, project_id: str, text: str) -> Iterator[dict[str, Any]]:
         try:
             handle = self.open_project(project_id)
-            for token in handle.session.stream_send(text):
-                yield {"event": "token", "data": {"text": token}}
-            reply = handle.session.last_candidate or ""
-            yield {"event": "done", "data": self._build_send_payload(handle, reply)}
         except ValueError as exc:
             yield {"event": "error", "data": {"error": str(exc)}}
+            return
+
+        event_queue: queue.SimpleQueue[_QueueEvent] = queue.SimpleQueue()
+
+        def worker() -> None:
+            try:
+                for token in handle.session.stream_send(text):
+                    event_queue.put(_QueueEvent(payload={"event": "token", "data": {"text": token}}))
+                reply = handle.session.last_candidate or ""
+                event_queue.put(_QueueEvent(payload={"event": "done", "data": self._build_send_payload(handle, reply)}))
+            except ValueError as exc:
+                event_queue.put(_QueueEvent(payload={"event": "error", "data": {"error": str(exc)}}))
+            except Exception as exc:
+                event_queue.put(_QueueEvent(payload={"event": "error", "data": {"error": str(exc)}}))
+            finally:
+                event_queue.put(_QueueEvent(done=True))
+
+        Thread(target=worker, daemon=True).start()
+
+        while True:
+            item = event_queue.get()
+            if item.done:
+                break
+            if item.payload is not None:
+                yield item.payload
 
     def _build_send_payload(self, handle: SessionHandle, reply: str) -> dict:
         suggestion = SceneSwitchAdvisor(handle.session.config.scene_switch).suggest(
