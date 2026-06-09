@@ -23,7 +23,7 @@
 | **L1** | 🟡 | **adopt / scene 各需几次 LLM 调用？** | adopt：续写 1 次 + Hot 抽取 1 次；scene：Cold 提案 1 次 + reconcile 1 次？实现阶段按成本与延迟优化，不阻塞架构。 |
 | **T8** | 🟢 | **上下文 token 预算如何分配？** | Phase 5：按**字符**分块上限 + 总预算裁剪；`/config` 可配。见 [memory-mvp-plan Phase 5](./memory-mvp-plan.md#phase-5中篇可用方向-a)。 |
 | **L6** | 🟢 | **Hot / Cold 抽取用的结构化输出 schema** | Hot：JSON patch（Phase 2）。Cold：`synopsis.json` 见 [memory-mvp-plan Phase 3](./memory-mvp-plan.md#phase-3场景切换与-cold-archive记忆闭环)。 |
-| **L7** | 🟢 | **System Prompt 中「写作任务」与「讨论任务」是否区分** | Phase 5：仅在 system 中加边界说明（讨论输出非正文，勿直接 adopt）；不新增讨论模式命令。 |
+| **L7** | 🟢 | **System Prompt 中「写作任务」与「讨论任务」是否区分** | Phase 5：仅在 system 中加边界说明（讨论输出非正文，勿直接 adopt）；不新增讨论模式命令。后续双轨演进见 [discussion-writing-dual-track-design.md](./discussion-writing-dual-track-design.md)。 |
 
 ---
 

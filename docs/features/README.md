@@ -11,3 +11,5 @@
 | [meta-schema-evolution-plan.md](./meta-schema-evolution-plan.md) | **meta.json schema 演进**（路线 B，scoped + 按需注入） | 已实现 |
 | [web-frontend-api-plan.md](./web-frontend-api-plan.md) | **Web 前端与 API 改造计划**（保留 CLI，新增 Web 启动方式） | Phase W2 + W6 已实现 |
 | [web-api-implementation-plan.md](./web-api-implementation-plan.md) | **Web/API 第一版实施计划**（W0–W7，可跨 session 追踪） | W0–W7 已实现 |
+| [discussion-writing-dual-track-design.md](./discussion-writing-dual-track-design.md) | **讨论 / 写作双轨设计**（双 prompt、双存储、双 API） | 设计讨论已收敛，待实现 |
+| [discussion-writing-dual-track-implementation-plan.md](./discussion-writing-dual-track-implementation-plan.md) | **讨论 / 写作双轨实施计划**（D0–D7，可跨 session 追踪） | D0–D7 未开始 |
