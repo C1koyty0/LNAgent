@@ -20,6 +20,7 @@ from lnagent.memory.cold_archive import (
 from lnagent.memory.context_budget import BudgetReport
 from lnagent.memory.models import (
     AdoptRecord,
+    ChatMessage,
     HotCanon,
     NovelMeta,
     ProjectConfig,
@@ -127,16 +128,40 @@ class NovelSession:
         return len(self._buffer.adopt_stack) > 0
 
     def send(self, user_input: str) -> str:
-        messages = self._prepare_send_messages(user_input)
-        return self._complete_send(user_input, self._invoke_reply(messages))
+        return self.send_writing(user_input)
+
+    def send_writing(self, user_input: str) -> str:
+        messages = self._prepare_writing_messages(user_input)
+        return self._complete_writing_send(user_input, self._invoke_reply(messages))
+
+    def send_discussion(self, user_input: str) -> str:
+        messages = self._prepare_discussion_messages(user_input)
+        return self._complete_discussion_send(user_input, self._invoke_reply(messages))
 
     def stream_send(self, user_input: str):
-        """逐块产出模型回复文本，并在结束时写入会话内存状态。"""
-        messages = self._prepare_send_messages(user_input)
+        yield from self.stream_send_writing(user_input)
+
+    def stream_send_writing(self, user_input: str):
+        """逐块产出写作回复文本，并在结束时写入会话内存状态。"""
+        messages = self._prepare_writing_messages(user_input)
+        yield from self._stream_with_completion(
+            messages,
+            lambda reply: self._complete_writing_send(user_input, reply),
+        )
+
+    def stream_send_discussion(self, user_input: str):
+        """逐块产出讨论回复文本，并在结束时写入 discussion raw chat。"""
+        messages = self._prepare_discussion_messages(user_input)
+        yield from self._stream_with_completion(
+            messages,
+            lambda reply: self._complete_discussion_send(user_input, reply),
+        )
+
+    def _stream_with_completion(self, messages: list, on_complete):
         stream = getattr(self._model, "stream", None)
         if not callable(stream):
             reply = self._invoke_reply(messages)
-            self._complete_send(user_input, reply)
+            on_complete(reply)
             yield reply
             return
 
@@ -158,23 +183,45 @@ class NovelSession:
                 yield delta
             if not assembled:
                 reply = self._invoke_reply(messages)
-                self._complete_send(user_input, reply)
+                on_complete(reply)
                 yield reply
                 completed = True
                 return
-            self._complete_send(user_input, assembled)
+            on_complete(assembled)
             completed = True
         finally:
             if not completed and assembled:
-                self._complete_send(user_input, assembled)
+                on_complete(assembled)
 
-    def _prepare_send_messages(self, user_input: str) -> list:
+    def _prepare_writing_messages(self, user_input: str) -> list:
         canon = self._store.load_canon()
         synopsis = self._store.load_synopsis()
-        messages = self._prompt_builder.build(
+        messages = self._prompt_builder.build_writing(
             meta=self._meta,
             canon=canon,
             buffer=self._buffer,
+            user_input=user_input,
+            global_summary=synopsis.global_summary,
+            prior_scene_cold=self._prior_scene_cold,
+            scene_tail=self._scene_tail,
+            context_config=self._config.context,
+            discussion_brief=None,
+        )
+        self._last_budget_report = getattr(
+            self._prompt_builder,
+            "last_budget_report",
+            BudgetReport(),
+        )
+        return messages
+
+    def _prepare_discussion_messages(self, user_input: str) -> list:
+        canon = self._store.load_canon()
+        synopsis = self._store.load_synopsis()
+        discussion_buffer = self._build_discussion_buffer()
+        messages = self._prompt_builder.build_discussion(
+            meta=self._meta,
+            canon=canon,
+            buffer=discussion_buffer,
             user_input=user_input,
             global_summary=synopsis.global_summary,
             prior_scene_cold=self._prior_scene_cold,
@@ -188,16 +235,34 @@ class NovelSession:
         )
         return messages
 
+    def _build_discussion_buffer(self) -> ShortTermBuffer:
+        messages = self._store.load_discussion_messages(self._buffer.scene_id)
+        return ShortTermBuffer(
+            scene_id=self._buffer.scene_id,
+            messages=list(messages),
+        )
+
     def _invoke_reply(self, messages: list) -> str:
         response = self._model.invoke(messages)
         content = response.content
         return content if isinstance(content, str) else str(content)
 
-    def _complete_send(self, user_input: str, reply: str) -> str:
+    def _complete_writing_send(self, user_input: str, reply: str) -> str:
         self._buffer.append_user(user_input)
         self._buffer.append_assistant(reply)
         self._buffer.set_candidate(reply)
         self._turns_since_last_adopt += 1
+        return reply
+
+    def _complete_discussion_send(self, user_input: str, reply: str) -> str:
+        self._store.append_discussion_message(
+            self._buffer.scene_id,
+            ChatMessage(role="user", content=user_input),
+        )
+        self._store.append_discussion_message(
+            self._buffer.scene_id,
+            ChatMessage(role="assistant", content=reply),
+        )
         return reply
 
     def prepare_adopt(self, text: str) -> AdoptProposal:

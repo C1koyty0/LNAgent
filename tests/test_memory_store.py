@@ -1153,6 +1153,138 @@ class NovelSessionTest(unittest.TestCase):
 
             self.assertEqual(session.turns_since_last_adopt, 0)
 
+    def test_send_is_compat_alias_for_writing_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            prompt_builder = _CapturingPromptBuilder()
+            session = NovelSession(
+                store,
+                _FixedResponseModel("写作回复"),
+                meta,
+                prompt_builder=prompt_builder,
+            )
+
+            reply = session.send("继续写")
+
+            self.assertEqual(reply, "写作回复")
+            self.assertIn("build_writing", prompt_builder.build_calls)
+            self.assertEqual(session.last_candidate, "写作回复")
+
+    def test_send_discussion_does_not_update_last_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _SequenceResponseModel(["写作回复", "讨论回复"]),
+                meta,
+            )
+            session.send("写开篇")
+            self.assertEqual(session.last_candidate, "写作回复")
+
+            reply = session.send_discussion("讨论一下这段节拍")
+
+            self.assertEqual(reply, "讨论回复")
+            self.assertEqual(session.last_candidate, "写作回复")
+
+    def test_send_discussion_does_not_increment_turns_since_last_adopt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _SequenceResponseModel(["写作回复", "讨论回复"]),
+                meta,
+            )
+            session.send("写开篇")
+            turns_before = session.turns_since_last_adopt
+
+            session.send_discussion("讨论一下这段节拍")
+
+            self.assertEqual(session.turns_since_last_adopt, turns_before)
+
+    def test_send_discussion_persists_raw_messages_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(store, _FixedResponseModel("讨论回复"), meta)
+
+            session.send_discussion("讨论一下这段节拍")
+
+            messages = store.load_discussion_messages("scene_001")
+            self.assertEqual(len(messages), 2)
+            self.assertEqual(messages[0].role, "user")
+            self.assertEqual(messages[0].content, "讨论一下这段节拍")
+            self.assertEqual(messages[1].role, "assistant")
+            self.assertEqual(messages[1].content, "讨论回复")
+            self.assertEqual(store.load_session().messages, [])
+
+    def test_send_discussion_does_not_pollute_writing_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            prompt_builder = _CapturingPromptBuilder()
+            session = NovelSession(
+                store,
+                _FixedResponseModel("讨论回复"),
+                meta,
+                prompt_builder=prompt_builder,
+            )
+
+            session.send_discussion("讨论一下这段节拍")
+
+            self.assertEqual(prompt_builder.seen_discussion_buffer_messages or [], [])
+            self.assertEqual(store.load_session().messages, [])
+
+    def test_stream_send_discussion_persists_raw_messages_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(store, _StreamingModel(["讨论", "回复"]), meta)
+
+            chunks = list(session.stream_send_discussion("讨论一下这段节拍"))
+
+            self.assertEqual(chunks, ["讨论", "回复"])
+            messages = store.load_discussion_messages("scene_001")
+            self.assertEqual(messages[-1].content, "讨论回复")
+            self.assertEqual(store.load_session().messages, [])
+
+    def test_discussion_prompt_reads_discussion_raw_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            store.append_discussion_message(
+                "scene_001",
+                ChatMessage(role="user", content="先前讨论"),
+            )
+            store.save_session(
+                SceneSession(
+                    scene_id="scene_001",
+                    messages=[ChatMessage(role="user", content="写作用历史")],
+                )
+            )
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            prompt_builder = _CapturingPromptBuilder()
+            session = NovelSession(
+                store,
+                _FixedResponseModel("讨论回复"),
+                meta,
+                prompt_builder=prompt_builder,
+            )
+
+            session.send_discussion("讨论一下这段节拍")
+
+            seen = prompt_builder.seen_discussion_buffer_messages or []
+            self.assertEqual(len(seen), 1)
+            self.assertEqual(seen[0].content, "先前讨论")
+
     def test_commit_adopt_accepts_canon_patch_and_clears_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
@@ -1717,6 +1849,9 @@ class _CapturingPromptBuilder:
         self.seen_canon: HotCanon | None = None
         self.seen_context_config: ContextConfig | None = None
         self.seen_scene_tail: str | None = None
+        self.seen_writing_buffer_messages: list[ChatMessage] | None = None
+        self.seen_discussion_buffer_messages: list[ChatMessage] | None = None
+        self.build_calls: list[str] = []
 
     def build(
         self,
@@ -1727,7 +1862,45 @@ class _CapturingPromptBuilder:
         user_input: str,
         **kwargs: object,
     ) -> list[HumanMessage]:
+        self.build_calls.append("build")
         self.seen_canon = canon
+        self.seen_writing_buffer_messages = list(buffer.messages)
+        value = kwargs.get("context_config")
+        self.seen_context_config = value if isinstance(value, ContextConfig) else None
+        tail = kwargs.get("scene_tail")
+        self.seen_scene_tail = tail if isinstance(tail, str) else None
+        return [HumanMessage(content=user_input)]
+
+    def build_writing(
+        self,
+        *,
+        meta: NovelMeta,
+        canon: HotCanon,
+        buffer: ShortTermBuffer,
+        user_input: str,
+        **kwargs: object,
+    ) -> list[HumanMessage]:
+        self.build_calls.append("build_writing")
+        self.seen_canon = canon
+        self.seen_writing_buffer_messages = list(buffer.messages)
+        value = kwargs.get("context_config")
+        self.seen_context_config = value if isinstance(value, ContextConfig) else None
+        tail = kwargs.get("scene_tail")
+        self.seen_scene_tail = tail if isinstance(tail, str) else None
+        return [HumanMessage(content=user_input)]
+
+    def build_discussion(
+        self,
+        *,
+        meta: NovelMeta,
+        canon: HotCanon,
+        buffer: ShortTermBuffer,
+        user_input: str,
+        **kwargs: object,
+    ) -> list[HumanMessage]:
+        self.build_calls.append("build_discussion")
+        self.seen_canon = canon
+        self.seen_discussion_buffer_messages = list(buffer.messages)
         value = kwargs.get("context_config")
         self.seen_context_config = value if isinstance(value, ContextConfig) else None
         tail = kwargs.get("scene_tail")
@@ -1741,6 +1914,32 @@ class _FixedResponseModel:
 
     def invoke(self, messages: list[object]) -> object:
         return _FakeResponse(content=self._content)
+
+
+class _StreamingModel:
+    def __init__(self, chunks: list[str]) -> None:
+        self._chunks = chunks
+
+    def invoke(self, messages: list[object]) -> object:
+        return _FakeResponse(content="".join(self._chunks))
+
+    def stream(self, messages: list[object]):
+        for chunk in self._chunks:
+            yield _FakeResponse(content=chunk)
+
+
+class _SequenceResponseModel:
+    def __init__(self, contents: list[str]) -> None:
+        self._contents = contents
+        self._index = 0
+
+    def invoke(self, messages: list[object]) -> object:
+        if self._index >= len(self._contents):
+            content = self._contents[-1]
+        else:
+            content = self._contents[self._index]
+        self._index += 1
+        return _FakeResponse(content=content)
 
 
 class _JsonColdModel:
