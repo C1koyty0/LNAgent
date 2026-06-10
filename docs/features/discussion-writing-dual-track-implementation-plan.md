@@ -282,30 +282,97 @@
 - discussion 不再污染 writing 状态
 - writing 仍兼容现有 adopt / fix / scene 主流程
 
+**当前已确认的 D2 约束**：
+
+- `send()` / `stream_send()` 暂时保留为 **writing 兼容入口**
+- 新增显式 API：
+  - `send_writing()`
+  - `stream_send_writing()`
+  - `send_discussion()`
+  - `stream_send_discussion()`
+- discussion 路径必须调用 `PromptContextBuilder.build_discussion()`
+- writing 路径必须调用 `PromptContextBuilder.build_writing()`
+- discussion 回复要写入 discussion raw chat，不写入 `ShortTermBuffer.messages`
+- discussion 回复不更新：
+  - `last_candidate`
+  - `turns_since_last_adopt`
+  - `adopt_stack`
+- discussion 不写 manuscript / canon / synopsis / session.json
+- D2 不做 brief dirty 刷新，不做 adopt/scene switch 的 discussion 清理联动
+
 **建议文件**：
 
 - Modify: `lnagent/session.py`
-- Modify: `lnagent/memory/short_term.py`
-- Test: `tests/test_memory_store.py` 或新增 `tests/test_dual_track_session.py`
+- Modify: `tests/test_memory_store.py`
+- Update docs: `docs/features/discussion-writing-dual-track-implementation-plan.md`
+
+**实现清单**：
+
+1. 在 `NovelSession` 中拆分 prompt 准备逻辑：
+   - `_prepare_writing_messages(user_input)`
+   - `_prepare_discussion_messages(user_input)`
+2. 新增 writing 显式入口：
+   - `send_writing(user_input)`
+   - `stream_send_writing(user_input)`
+3. 保留 `send()` / `stream_send()`，并让其内部直接转发到 writing 显式入口。
+4. 新增 discussion 显式入口：
+   - `send_discussion(user_input)`
+   - `stream_send_discussion(user_input)`
+5. 拆分完成态写回逻辑：
+   - `_complete_writing_send(user_input, reply)`
+   - `_complete_discussion_send(user_input, reply)`
+6. writing 完成态继续保持现有行为：
+   - 追加到 `ShortTermBuffer.messages`
+   - 更新 `last_candidate`
+   - `turns_since_last_adopt += 1`
+7. discussion 完成态改为：
+   - `store.append_discussion_message(scene_id, ChatMessage(role="user", ...))`
+   - `store.append_discussion_message(scene_id, ChatMessage(role="assistant", ...))`
+   - 不碰 `ShortTermBuffer`
+   - 不持久化 `session.json`
+8. 为 discussion prompt 准备逻辑接入 scene 级 raw chat：
+   - `store.load_discussion_messages(scene_id)`
+   - 将其包装为仅供 prompt builder 使用的 `ShortTermBuffer(scene_id=..., messages=...)`
+9. 确保 writing prompt 仍只读取：
+   - `ShortTermBuffer.messages`
+   - `DiscussionBrief` 暂不接入 D2（留给 D3）
+10. 新增 discussion 读取辅助（如有必要）：
+   - `_build_discussion_buffer()` 或等价局部 helper
+11. D2 **不涉及**：
+   - brief `dirty` 生命周期
+   - writing 发送前自动刷新 brief
+   - adopt / undo / scene switch discussion 清理
+   - Web/API 路由分流
+
+**测试清单**：
+
+- [x] T2.1 `send()` 仍兼容走 writing 路径
+- [x] T2.2 `send_writing()` 更新 `last_candidate`
+- [x] T2.3 `send_discussion()` 不更新 `last_candidate`
+- [x] T2.4 `send_discussion()` 不增加 `turns_since_last_adopt`
+- [x] T2.5 `send_discussion()` 将 user/assistant 消息写入 discussion raw chat
+- [x] T2.6 `send_discussion()` 不污染 `ShortTermBuffer.messages`
+- [x] T2.7 `stream_send_discussion()` 结束后也遵守相同边界
+- [x] T2.8 discussion prompt 读取 discussion raw chat，而非 writing history
 
 **任务清单**：
 
-- [ ] D2.1 为 session 增加 discussion 状态读取/写入辅助方法
-- [ ] D2.2 实现 `send_discussion()`
-- [ ] D2.3 重命名或封装现有 `send()` 为 writing 语义入口
-- [ ] D2.4 明确 discussion 不更新 `last_candidate` / `turns_since_last_adopt`
-- [ ] D2.5 为 discussion / writing 边界写回归测试
+- [x] D2.1 拆分 writing / discussion prompt 准备逻辑
+- [x] D2.2 新增 `send_writing()` / `stream_send_writing()`
+- [x] D2.3 新增 `send_discussion()` / `stream_send_discussion()`
+- [x] D2.4 拆分 writing / discussion 完成态写回逻辑
+- [x] D2.5 为双轨 session 行为补回归测试
 
 **验收**：
 
-- [ ] discussion send 后 `last_candidate` 不变
-- [ ] discussion send 不写 manuscript / canon
-- [ ] writing send 继续可被 adopt
-- [ ] scene switch suggestion 仅由 writing 主线驱动
+- [x] discussion send 后 `last_candidate` 不变
+- [x] discussion send 不写 manuscript / canon / synopsis / session.json
+- [x] writing send 继续可被 adopt
+- [x] scene switch suggestion 仅由 writing 主线驱动
 
 **验收命令（建议）**：
 
-- `python -m unittest tests.test_dual_track_session -v`
+- `python -m unittest tests.test_memory_store.NovelSessionTest -v`
 - `python -m unittest tests.test_memory_store -v`
 
 ---
@@ -325,29 +392,73 @@
 - discussion 原始聊天不会直接污染 writing prompt
 - writing 始终读取最新可用 brief
 - brief 刷新成本可控
+- brief 刷新失败时不阻塞写作主流程
 
 **建议文件**：
 
 - Modify: `lnagent/session.py`
-- Create/Modify: `lnagent/memory/discussion_brief.py`
-- Test: `tests/test_discussion_brief.py`
+- Create: `lnagent/memory/discussion_brief.py`
+- Modify: `tests/test_memory_store.py`
+- Create: `tests/test_discussion_brief.py`
+
+**设计决策（已确认）**：
+
+1. `send_discussion()` / `stream_send_discussion()` 结束后，**只**将 brief 标记为 `dirty=true`，不立即刷新。
+2. `send_writing()` / `stream_send_writing()` 在构建 prompt 前检查 brief；若 `dirty=true` 且 raw discussion 非空，则自动刷新。
+3. 刷新失败时，**不阻塞 writing**；回退到旧 brief，若无旧 brief 则按无 brief 处理。
+4. brief 刷新采用**全量 raw discussion 重算并整体覆盖**，不做增量 merge。
+5. brief 刷新允许读取：
+   - 当前 scene 的 discussion raw chat
+   - `NovelMeta`
+   - `HotCanon`
+   - `synopsis.global`
+   - `prior_scene_cold`
+   - `scene_tail`
+6. brief 刷新**不读取** writing 轨的 `ShortTermBuffer.messages`。
+7. `updated_at` 仅表示 brief 最后一次成功刷新时间，由 refresher 在成功时写入。
+8. 若 brief 为空且无有效内容，则 writing builder 接收 `None`，不注入空 brief block。
+
+**实现顺序**：
+
+1. 先新增 `DiscussionBriefRefresher` 与 JSON 解析测试
+2. 再实现 refresher 模块
+3. 然后为 `NovelSession` 补 bridge / dirty 回归测试
+4. 最后将 writing prepare 正式接上 auto-refresh + brief 注入
 
 **任务清单**：
 
-- [ ] D3.1 设计 brief 刷新输入输出接口
-- [ ] D3.2 在 discussion send 后标记 brief dirty
-- [ ] D3.3 在 writing send 前自动刷新 dirty brief
-- [ ] D3.4 为 brief 刷新与自动桥接补测试
+- [ ] D3.1 新增 `DiscussionBriefRefresher` 组件与 JSON 解析器
+- [ ] D3.2 为 refresher 补独立单元测试
+- [ ] D3.3 在 discussion send 后标记 brief dirty
+- [ ] D3.4 在 writing send / stream_send 前自动刷新 dirty brief
+- [ ] D3.5 刷新成功后保存新 brief、写入 `updated_at`、置 `dirty=false`
+- [ ] D3.6 刷新失败时回退到旧 brief / 无 brief，不阻塞写作
+- [ ] D3.7 将最终 brief 注入 `build_writing(..., discussion_brief=...)`
+- [ ] D3.8 为 session 桥接行为补回归测试
+
+**测试清单**：
+
+- [ ] T3.1 `DiscussionBriefRefresher` 能将合法 JSON 解析为 `DiscussionBrief`
+- [ ] T3.2 缺失列表字段时默认为空列表
+- [ ] T3.3 非对象根节点 / 非法 JSON 会抛刷新异常
+- [ ] T3.4 discussion send 后 brief 被标记为 `dirty=true`
+- [ ] T3.5 writing send 前会刷新 dirty brief 并将结果注入 prompt builder
+- [ ] T3.6 writing send 在 brief clean 时不会重复刷新
+- [ ] T3.7 writing send 不直接读取 raw discussion messages
+- [ ] T3.8 刷新失败时 writing 仍继续，并回退旧 brief / 无 brief
+- [ ] T3.9 stream_send_writing() 同样会在开始前执行 auto-refresh
 
 **验收**：
 
 - [ ] discussion 后 brief 可标记 dirty
 - [ ] writing 前可自动得到最新 brief
 - [ ] writing 不直接读取 raw discussion messages
+- [ ] brief 刷新失败不阻塞写作
 
 **验收命令（建议）**：
 
 - `python -m unittest tests.test_discussion_brief -v`
+- `python -m unittest tests.test_memory_store -v`
 
 ---
 

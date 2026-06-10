@@ -298,14 +298,74 @@ discussion 轨建议**按轮次持久化**：
 - 讨论过程中 brief 容易频繁抖动
 - 有些 discussion 只是局部探索，不值得立即沉淀
 
-### 7.3 为什么不只手动刷新
+### 7.4 `dirty` 的精确定义
 
-完全手动会增加用户负担，也容易忘记。
+`dirty=true` 的唯一语义是：
 
-因此第一版更适合：
+- 当前 scene 的 discussion raw chat 中，存在**尚未被当前 brief 摘要吸收**的信息。
 
-- raw chat 实时积累
-- brief 懒刷新（写作前自动刷新）
+因此：
+
+- discussion 新增 user/assistant 消息后，应将 brief 标记为 `dirty=true`
+- brief 刷新成功后，应保存新 brief 并置 `dirty=false`
+- 若当前 scene 已无 raw discussion messages，则不应仅因为 brief 存在而继续保持 `dirty=true`
+
+### 7.5 brief 刷新输入边界
+
+brief 刷新时，允许读取的输入为：
+
+- 当前 scene 的 discussion raw chat
+- `NovelMeta`
+- `HotCanon`
+- `synopsis.global`
+- `prior_scene_cold`
+- `scene_tail`
+
+但 **不读取 writing 轨的 `ShortTermBuffer.messages`**。
+
+原因：
+
+- writing 与 discussion 已在后端语义上拆轨
+- brief 刷新应总结 discussion 轨结论，而不是重新混入 writing 主线聊天历史
+
+### 7.6 刷新触发与失败策略
+
+推荐流程：
+
+1. `send_discussion()` / `stream_send_discussion()` 结束后，只写 raw chat，并将 brief 标记为 `dirty=true`
+2. `send_writing()` / `stream_send_writing()` 在构建 writing prompt 前检查 brief
+3. 若 `dirty=true` 且当前 scene raw discussion messages 非空，则自动刷新 brief
+4. 若刷新成功：
+   - 用新 brief **整体覆盖**旧 brief
+   - 写入 `updated_at`
+   - 置 `dirty=false`
+5. 若刷新失败：
+   - **不阻塞 writing**
+   - 回退到旧 brief；若无旧 brief，则按无 brief 处理
+   - 允许 `dirty` 继续保持 `true`，等待下一次刷新机会
+
+### 7.7 为什么采用整份重算覆盖
+
+brief 刷新采用**全量 raw discussion → 重新生成完整 brief**，而不是增量 merge。
+
+原因：
+
+- discussion 过程中常会推翻前面的中间意见
+- 增量 merge 容易残留过期的 `todo_items` / `constraints`
+- 全量重算更符合“当前讨论共识”的产品语义
+
+### 7.8 `updated_at` 的语义
+
+`updated_at` 表示：
+
+- **该 brief 最后一次成功刷新完成的时间**
+
+它不表示：
+
+- 最后一条 raw discussion message 的时间
+- brief 首次创建时间
+
+因此推荐由 brief refresher / orchestrator 在刷新成功时写入，而不是由 store 自动补全。
 
 ---
 
