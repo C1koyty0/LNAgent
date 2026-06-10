@@ -21,6 +21,7 @@ from lnagent.memory.models import (
     ChatMessage,
     ColdSynopsis,
     ContextConfig,
+    DiscussionBrief,
     HotCanon,
     NovelMeta,
     ProjectConfig,
@@ -507,8 +508,8 @@ class PromptContextBuilderTest(unittest.TestCase):
 
         system = messages[0]
         assert isinstance(system.content, str)
-        self.assertIn("区分“写作任务”和“讨论任务”", system.content)
         self.assertIn("只有作者通过 /a 采纳的文本才视为正式正文", system.content)
+        self.assertIn("讨论区的结论是写作参考", system.content)
 
     def test_build_includes_non_empty_extended_meta_fields(self) -> None:
         meta = NovelMeta(
@@ -636,6 +637,158 @@ class PromptContextBuilderTest(unittest.TestCase):
         total_chars = sum(len(str(message.content)) for message in messages)
         self.assertLessEqual(total_chars, 600)
         self.assertTrue(builder.last_budget_report.has_clipping)
+
+    # ── D1: dual-track prompt builder ──
+
+    def test_build_writing_injects_brief_block(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        brief = DiscussionBrief(
+            scene_id="scene_001",
+            todo_items=["先写主角的不适应感"],
+            constraints=["不要提前揭示徽章来源"],
+            open_questions=["导师是否本场出场未定"],
+            dirty=True,
+            updated_at="",
+        )
+        builder = PromptContextBuilder()
+
+        messages = builder.build_writing(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="继续写",
+            discussion_brief=brief,
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertIn("当前场景讨论结论", system.content)
+        self.assertIn("先写主角的不适应感", system.content)
+        self.assertIn("不要提前揭示徽章来源", system.content)
+        self.assertIn("导师是否本场出场未定", system.content)
+
+    def test_build_writing_no_empty_brief_block_when_none(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        builder = PromptContextBuilder()
+
+        messages = builder.build_writing(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="继续写",
+            discussion_brief=None,
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertNotIn("当前场景讨论结论", system.content)
+
+    def test_build_discussion_uses_discussion_instructions(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        builder = PromptContextBuilder()
+
+        messages = builder.build_discussion(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="讨论一下节拍",
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertNotIn(
+            "区分“写作任务”和“讨论任务”", system.content,
+        )
+
+    def test_build_discussion_excludes_adopted_prose(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        buffer = ShortTermBuffer(
+            scene_id="scene_001",
+            adopted_prose="已采纳的正文。",
+        )
+        builder = PromptContextBuilder()
+
+        messages = builder.build_discussion(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=buffer,
+            user_input="讨论一下节拍",
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertNotIn("已采纳正文（当前场景）", system.content)
+
+    def test_build_discussion_includes_scene_tail(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        builder = PromptContextBuilder()
+
+        messages = builder.build_discussion(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="讨论一下节拍",
+            scene_tail="……他推开了门。",
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        self.assertIn("前文衔接", system.content)
+        self.assertIn("他推开了门", system.content)
+
+    def test_build_writing_preserves_block_order(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        brief = DiscussionBrief(
+            scene_id="scene_001",
+            todo_items=["待写事项"],
+            constraints=["约束项"],
+            open_questions=[],
+        )
+        builder = PromptContextBuilder()
+
+        messages = builder.build_writing(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001", adopted_prose="正文。"),
+            user_input="继续写",
+            discussion_brief=brief,
+        )
+
+        system = messages[0]
+        assert isinstance(system.content, str)
+        brief_pos = system.content.index("当前场景讨论结论")
+        prose_pos = system.content.index("已采纳正文（当前场景）")
+        self.assertLess(brief_pos, prose_pos)
+
+    def test_build_is_compat_alias_for_build_writing(self) -> None:
+        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        brief = DiscussionBrief(
+            scene_id="scene_001",
+            todo_items=["待写事项"],
+            constraints=["约束"],
+            open_questions=[],
+        )
+        builder = PromptContextBuilder()
+
+        compat_messages = builder.build(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="继续",
+        )
+
+        writing_messages = builder.build_writing(
+            meta=meta,
+            canon=HotCanon.empty(),
+            buffer=ShortTermBuffer(scene_id="scene_001"),
+            user_input="继续",
+            discussion_brief=None,
+        )
+
+        self.assertEqual(
+            [m.content for m in compat_messages],
+            [m.content for m in writing_messages],
+        )
 
 
 class SceneSwitchAdvisorTest(unittest.TestCase):

@@ -212,22 +212,7 @@ writing prompt 应明确：
 - `projects/<id>/memory/synopsis.json`
 - `projects/<id>/manuscript/scene_XXX.md`
 
-### 6.2 discussion 路径（新增）
-
 建议新增目录：
-
-```text
-projects/<id>/discussion/
-  scene_001_messages.json
-  scene_001_brief.json
-```
-
-语义：
-
-- `scene_001_messages.json`：当前 scene 的原始 discussion 聊天
-- `scene_001_brief.json`：当前 scene 的结构化 brief
-
-也可采用子目录形式：
 
 ```text
 projects/<id>/discussion/
@@ -236,7 +221,16 @@ projects/<id>/discussion/
     brief.json
 ```
 
-推荐后一种，更利于后续扩展 scene 级附加状态。
+语义：
+
+- `messages.json`：当前 scene 的原始 discussion 聊天
+- `brief.json`：当前 scene 的结构化 brief
+
+这里采用 scene 子目录形式，而不是 `scene_001_messages.json` / `scene_001_brief.json` 扁平文件命名，原因是：
+
+- 更利于后续扩展 scene 级附加状态
+- 便于 `clear_discussion_scene(scene_id)` 做整目录清理
+- 保持 scene 私有 discussion 数据的边界清晰
 
 ### 6.3 brief 结构建议
 

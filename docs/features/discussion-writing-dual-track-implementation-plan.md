@@ -121,7 +121,7 @@
    - `load_discussion_brief()` 在文件不存在时返回 `DiscussionBrief.empty(scene_id)`
    - `clear_*()` 在目标不存在时静默成功
 9. discussion 文件格式约定：
-   - `messages.json` 为 `ChatMessage.to_dict()` 数组
+   - `messages.json` 为对象根，形如 `{ "messages": [ChatMessage.to_dict(), ...] }`
    - `brief.json` 为结构化对象，包含 `todo_items / constraints / open_questions / dirty / updated_at`
 10. `updated_at` 在 D0 仅作为数据字段保存，由调用方传入；store 层不负责生成时间。
 11. D0 **不涉及**：
@@ -132,29 +132,29 @@
 
 **测试清单**：
 
-- [ ] T0.1 `ensure_project_layout()` 创建 `discussion/` 根目录
-- [ ] T0.2 `load_discussion_messages()` 缺省返回空列表
-- [ ] T0.3 discussion messages round trip
-- [ ] T0.4 `append_discussion_message()` 保留已有消息顺序
-- [ ] T0.5 `load_discussion_brief()` 缺省返回空 brief
-- [ ] T0.6 discussion brief round trip
-- [ ] T0.7 `clear_discussion_messages()` 只清 raw chat，不影响 brief
-- [ ] T0.8 `clear_discussion_brief()` 只清 brief，不影响 messages
-- [ ] T0.9 `clear_discussion_scene()` 清空当前 scene 的 discussion 全部状态
+- [x] T0.1 `ensure_project_layout()` 创建 `discussion/` 根目录
+- [x] T0.2 `load_discussion_messages()` 缺省返回空列表
+- [x] T0.3 discussion messages round trip
+- [x] T0.4 `append_discussion_message()` 保留已有消息顺序
+- [x] T0.5 `load_discussion_brief()` 缺省返回空 brief
+- [x] T0.6 discussion brief round trip
+- [x] T0.7 `clear_discussion_messages()` 只清 raw chat，不影响 brief
+- [x] T0.8 `clear_discussion_brief()` 只清 brief，不影响 messages
+- [x] T0.9 `clear_discussion_scene()` 清空当前 scene 的 discussion 全部状态
 
 **任务清单**：
 
-- [ ] D0.1 定义 `DiscussionBrief` 数据结构
-- [ ] D0.2 设计并实现 `projects/<id>/discussion/scene_xxx/` 持久化布局
-- [ ] D0.3 在 store 中增加 discussion read/write/clear 接口
-- [ ] D0.4 为 discussion store 编写单元测试
+- [x] D0.1 定义 `DiscussionBrief` 数据结构
+- [x] D0.2 设计并实现 `projects/<id>/discussion/scene_xxx/` 持久化布局
+- [x] D0.3 在 store 中增加 discussion read/write/clear 接口
+- [x] D0.4 为 discussion store 编写单元测试
 
 **验收**：
 
-- [ ] discussion raw chat 与 brief 能独立读写
-- [ ] `session.json` 与现有 writing / canon / synopsis 持久化格式保持不变
-- [ ] 给定 `scene_id`，可定位 discussion 数据目录
-- [ ] discussion 清理行为不影响 writing 主路径
+- [x] discussion raw chat 与 brief 能独立读写
+- [x] `session.json` 与现有 writing / canon / synopsis 持久化格式保持不变
+- [x] 给定 `scene_id`，可定位 discussion 数据目录
+- [x] discussion 清理行为不影响 writing 主路径
 
 **验收命令（建议）**：
 
@@ -179,27 +179,89 @@
 - writing 任务明确是“生成可采纳正文候选”
 - writing 使用 brief，而不是 raw discussion chat
 
+**当前已确认的 D1 约束**：
+
+- `PromptContextBuilder.build()` 保留为兼容别名，并内部转发到 `build_writing()`
+- discussion / writing 使用两套独立 instruction
+- 只有 writing prompt 读取 `DiscussionBrief`
+- discussion prompt **不读取** brief
+- discussion prompt **不注入**当前场景 `adopted_prose`，只允许读取 `scene_tail`
+- D1 只做 prompt 基础设施，不做 brief dirty 刷新或 runtime 分流
+
 **建议文件**：
 
 - Modify: `lnagent/memory/prompt.py`
-- Test: `tests/test_prompt_builder.py` 或新增 `tests/test_discussion_prompt.py`
+- Modify: `tests/test_memory_store.py`
+- Update docs: `docs/features/discussion-writing-dual-track-implementation-plan.md`
+
+**实现清单**：
+
+1. 在 `lnagent/memory/prompt.py` 中拆出两套 instruction 常量：
+   - `_WRITING_INSTRUCTIONS`
+   - `_DISCUSSION_INSTRUCTIONS`
+2. 为 `PromptContextBuilder` 新增两个显式入口：
+   - `build_writing(...)`
+   - `build_discussion(...)`
+3. 保留 `build(...)` 作为兼容别名，并让其内部直接调用 `build_writing(...)`。
+4. 将当前 `build()` 的主拼装逻辑迁移到 `build_writing()`，尽量保持现有 budget / meta / canon / synopsis / scene_tail 行为不变。
+5. 为 `build_writing()` 增加参数：
+   - `discussion_brief: DiscussionBrief | None = None`
+6. 新增 writing brief 格式化 helper，例如：
+   - `_format_discussion_brief_for_writing(brief)`
+7. 在 writing system prompt 中新增独立 brief block：
+   - 标题建议为 `当前场景讨论结论（供写作参考，非 Canon）`
+   - 包含 `todo_items / constraints / open_questions`
+8. 明确 writing system prompt 的相对顺序：
+   - instructions
+   - meta
+   - global summary / prior cold
+   - hot canon
+   - discussion brief
+   - scene tail / adopted prose
+9. 实现 `build_discussion()`：
+   - 使用 `_DISCUSSION_INSTRUCTIONS`
+   - 不接收 `discussion_brief`
+   - 不注入 brief block
+   - 不注入 `已采纳正文（当前场景）`
+   - 可注入 `scene_tail`
+10. 保持 discussion prompt 的上下文更轻：
+   - 可读 `meta / canon / global / prior / scene_tail / raw history / user_input`
+   - 不默认读取完整 `adopted_prose`
+11. D1 **不涉及**：
+   - `NovelSession` 双轨 send 分流
+   - brief dirty / 自动刷新
+   - API / 前端接线
+   - discussion raw chat → brief 提炼逻辑
+
+**测试清单**：
+
+- [x] T1.1 `build()` 仍兼容走 writing 路径
+- [x] T1.2 `build_writing()` 注入 brief block
+- [x] T1.3 `build_writing()` 在 `discussion_brief=None` 时不注入空 brief block
+- [x] T1.4 `build_discussion()` 使用 discussion instructions
+- [x] T1.5 `build_discussion()` 不注入 `已采纳正文（当前场景）`
+- [x] T1.6 `build_discussion()` 可注入 `scene_tail`
+- [x] T1.7 `build_writing()` 保持 `meta -> global/prior -> canon -> brief -> tail/prose` 相对顺序
 
 **任务清单**：
 
-- [ ] D1.1 抽离 discussion / writing 两套 instruction 模板
-- [ ] D1.2 为 writing prompt 注入 discussion brief
-- [ ] D1.3 确保 discussion prompt 不注入 candidate 语义字段
-- [ ] D1.4 为 prompt builder 行为补测试
+- [x] D1.1 拆离 discussion / writing 两套 instruction 模板
+- [x] D1.2 新增 `build_writing()` / `build_discussion()` 双入口
+- [x] D1.3 为 writing prompt 注入 `DiscussionBrief`
+- [x] D1.4 保留 `build()` 兼容别名
+- [x] D1.5 为双 prompt 行为补回归测试
 
 **验收**：
 
-- [ ] discussion prompt 与 writing prompt 可独立构建
-- [ ] writing prompt 读取 brief，不读取 discussion raw chat
-- [ ] 现有 writing prompt 的世界观 / Canon / synopsis 注入顺序仍正确
+- [x] discussion prompt 与 writing prompt 可独立构建
+- [x] writing prompt 读取 brief，不读取 discussion raw chat
+- [x] discussion prompt 不注入当前场景 `adopted_prose`
+- [x] 现有 writing prompt 的世界观 / Canon / synopsis 注入顺序仍正确
 
 **验收命令（建议）**：
 
-- `python -m unittest tests.test_prompt_builder -v`
+- `python -m unittest tests.test_memory_store.PromptContextBuilderTest -v`
+- `python -m unittest tests.test_memory_store -v`
 
 ---
 

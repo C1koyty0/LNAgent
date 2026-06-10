@@ -8,7 +8,9 @@ from pathlib import Path
 
 from lnagent.memory.models import (
     DEFAULT_SCENE_ID,
+    ChatMessage,
     ColdSynopsis,
+    DiscussionBrief,
     HotCanon,
     NovelMeta,
     ProjectConfig,
@@ -43,6 +45,7 @@ class JsonMemoryStore:
         self._project_dir.mkdir(parents=True, exist_ok=True)
         (self._project_dir / "memory").mkdir(parents=True, exist_ok=True)
         (self._project_dir / "manuscript").mkdir(parents=True, exist_ok=True)
+        self._discussion_root().mkdir(parents=True, exist_ok=True)
 
         if not self._canon_path.is_file():
             self._write_json(self._canon_path, HotCanon.empty().to_dict())
@@ -150,8 +153,81 @@ class JsonMemoryStore:
             key=lambda path: int(_SCENE_FILE_PATTERN.match(path.name).group(1)),  # type: ignore[union-attr]
         )
 
+    def load_discussion_messages(self, scene_id: str) -> list[ChatMessage]:
+        path = self._discussion_messages_path(scene_id)
+        if not path.is_file():
+            return []
+        data = self._read_json(path)
+        raw_messages = data.get("messages", [])
+        if not isinstance(raw_messages, list):
+            return []
+        return [
+            ChatMessage.from_dict(message)
+            for message in raw_messages
+            if isinstance(message, dict)
+        ]
+
+    def save_discussion_messages(
+        self, scene_id: str, messages: list[ChatMessage]
+    ) -> None:
+        path = self._discussion_messages_path(scene_id)
+        self._write_json(
+            path,
+            {"messages": [message.to_dict() for message in messages]},
+        )
+
+    def append_discussion_message(self, scene_id: str, message: ChatMessage) -> None:
+        messages = self.load_discussion_messages(scene_id)
+        messages.append(message)
+        self.save_discussion_messages(scene_id, messages)
+
+    def clear_discussion_messages(self, scene_id: str) -> None:
+        path = self._discussion_messages_path(scene_id)
+        if path.is_file():
+            path.unlink()
+        self._cleanup_discussion_scene_dir(scene_id)
+
+    def load_discussion_brief(self, scene_id: str) -> DiscussionBrief:
+        path = self._discussion_brief_path(scene_id)
+        if not path.is_file():
+            return DiscussionBrief.empty(scene_id)
+        data = self._read_json(path)
+        return DiscussionBrief.from_dict(data)
+
+    def save_discussion_brief(self, scene_id: str, brief: DiscussionBrief) -> None:
+        path = self._discussion_brief_path(scene_id)
+        self._write_json(path, brief.to_dict())
+
+    def clear_discussion_brief(self, scene_id: str) -> None:
+        path = self._discussion_brief_path(scene_id)
+        if path.is_file():
+            path.unlink()
+        self._cleanup_discussion_scene_dir(scene_id)
+
+    def clear_discussion_scene(self, scene_id: str) -> None:
+        self.clear_discussion_messages(scene_id)
+        self.clear_discussion_brief(scene_id)
+        self._cleanup_discussion_scene_dir(scene_id)
+
     def _scene_manuscript_path(self, scene_id: str) -> Path:
         return self._project_dir / "manuscript" / f"{scene_id}.md"
+
+    def _discussion_root(self) -> Path:
+        return self._project_dir / "discussion"
+
+    def _discussion_scene_dir(self, scene_id: str) -> Path:
+        return self._discussion_root() / scene_id
+
+    def _discussion_messages_path(self, scene_id: str) -> Path:
+        return self._discussion_scene_dir(scene_id) / "messages.json"
+
+    def _discussion_brief_path(self, scene_id: str) -> Path:
+        return self._discussion_scene_dir(scene_id) / "brief.json"
+
+    def _cleanup_discussion_scene_dir(self, scene_id: str) -> None:
+        scene_dir = self._discussion_scene_dir(scene_id)
+        if scene_dir.is_dir() and not any(scene_dir.iterdir()):
+            scene_dir.rmdir()
 
     @staticmethod
     def _read_json(path: Path) -> dict:

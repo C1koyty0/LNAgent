@@ -24,6 +24,56 @@ class ChatMessage:
 
 
 @dataclass
+class DiscussionBrief:
+    scene_id: str
+    todo_items: list[str] = field(default_factory=list)
+    constraints: list[str] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
+    dirty: bool = False
+    updated_at: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scene_id": self.scene_id,
+            "todo_items": self.todo_items,
+            "constraints": self.constraints,
+            "open_questions": self.open_questions,
+            "dirty": self.dirty,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DiscussionBrief:
+        raw_todo_items = data.get("todo_items", [])
+        raw_constraints = data.get("constraints", [])
+        raw_open_questions = data.get("open_questions", [])
+        return cls(
+            scene_id=str(data.get("scene_id", DEFAULT_SCENE_ID)),
+            todo_items=(
+                [str(item) for item in raw_todo_items]
+                if isinstance(raw_todo_items, list)
+                else []
+            ),
+            constraints=(
+                [str(item) for item in raw_constraints]
+                if isinstance(raw_constraints, list)
+                else []
+            ),
+            open_questions=(
+                [str(item) for item in raw_open_questions]
+                if isinstance(raw_open_questions, list)
+                else []
+            ),
+            dirty=bool(data.get("dirty", False)),
+            updated_at=str(data.get("updated_at", "")),
+        )
+
+    @classmethod
+    def empty(cls, scene_id: str) -> DiscussionBrief:
+        return cls(scene_id=scene_id)
+
+
+@dataclass
 class ScopedWorldRules:
     scope_type: str
     scope_id: str
