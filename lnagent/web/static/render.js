@@ -374,6 +374,50 @@ function renderConfigSummary(configPayload) {
   return renderKeyValueRows(keys.map((key) => [key, flat[key]]));
 }
 
+function renderDiscussionBrief(brief) {
+  if (!brief || typeof brief !== "object") {
+    return "<p class='hint'>暂无 discussion brief。</p>";
+  }
+  const todoItems = Array.isArray(brief.todo_items) ? brief.todo_items : [];
+  const constraints = Array.isArray(brief.constraints) ? brief.constraints : [];
+  const openQuestions = Array.isArray(brief.open_questions) ? brief.open_questions : [];
+  const updatedAt = String(brief.updated_at || "").trim();
+  const dirty = Boolean(brief.dirty);
+  const empty = !todoItems.length && !constraints.length && !openQuestions.length;
+  if (empty && !updatedAt) {
+    return "<p class='hint'>暂无 discussion brief，先进行几轮讨论吧。</p>";
+  }
+
+  let html = `
+    <div class='discussion-brief-status'>
+      <span class='badge ${dirty ? "discussion-brief-dirty" : "discussion-brief-clean"}'>${dirty ? "待刷新" : "已同步"}</span>
+      ${updatedAt ? `<span class='hint'>更新于 ${escapeHtml(updatedAt)}</span>` : ""}
+    </div>
+  `;
+  if (todoItems.length) {
+    html += renderBulletSection("待办", todoItems);
+  }
+  if (constraints.length) {
+    html += renderBulletSection("当前约束", constraints);
+  }
+  if (openQuestions.length) {
+    html += renderBulletSection("待解问题", openQuestions);
+  }
+  if (empty) {
+    html += "<p class='hint'>当前 brief 为空，但会在后续讨论中逐步沉淀。</p>";
+  }
+  return html;
+}
+
+function renderDiscussionMessages(messages) {
+  if (!Array.isArray(messages) || !messages.length) {
+    return '<p class="hint">暂无讨论消息，切到讨论模式后发送第一条消息开始梳理。</p>';
+  }
+  return messages
+    .map((message) => renderMessageHtml(message.role, message.content))
+    .join("");
+}
+
 function populateConfigForm(configPayload) {
   const keySelect = document.getElementById("config-key");
   const valueInput = document.getElementById("config-value");

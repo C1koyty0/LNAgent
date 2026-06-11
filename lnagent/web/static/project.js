@@ -22,10 +22,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const sceneSuggestionText = document.getElementById("scene-suggestion-text");
   const exportResult = document.getElementById("export-result");
   const configForm = document.getElementById("config-form");
+  const modeToggle = document.getElementById("mode-toggle");
+  const modeDescription = document.getElementById("mode-description");
+  const writingMessagesEl = document.getElementById("messages");
+  const discussionMessagesEl = document.getElementById("discussion-messages");
+  const discussionBriefEl = document.getElementById("discussion-brief");
+  const discussionWeakHintEl = document.getElementById("discussion-weak-hint");
+  const adoptPanel = document.getElementById("adopt-panel");
+  const fixPanel = document.getElementById("fix-panel");
 
   const actionButtons = Array.from(document.querySelectorAll("[data-action]"));
+  const modeButtons = Array.from(modeToggle?.querySelectorAll("[data-mode]") || []);
+
   let pendingReconcileIndex = 0;
   let scenePrepareData = null;
+  let currentMode = "writing";
+  let writingSession = null;
+  let discussionState = null;
+  let metaState = null;
+  let canonState = null;
+  let synopsisState = null;
+  let manuscriptsState = null;
+  let configState = null;
 
   actionButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -38,6 +56,16 @@ document.addEventListener("DOMContentLoaded", () => {
       runAction(button.dataset.action).catch((error) => {
         setStatus(statusEl, error.message, "error");
       });
+    });
+  });
+
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextMode = button.dataset.mode || "writing";
+      if (nextMode === currentMode) {
+        return;
+      }
+      setMode(nextMode);
     });
   });
 
@@ -70,6 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
         setStatus(statusEl, "正在打开项目…", "info");
         await apiRequest("POST", `/api/projects/${encodeURIComponent(projectId)}/open`);
         await refreshAll();
+        setMode("writing");
         setStatus(statusEl, "项目已就绪。", "info");
       },
     );
@@ -113,6 +142,10 @@ document.addEventListener("DOMContentLoaded", () => {
             await updateConfig("reset");
           } else if (action === "config-reset-all") {
             await updateConfig("reset", "all");
+          } else if (action === "discussion-refresh") {
+            await refreshDiscussionBrief();
+          } else if (action === "discussion-clear") {
+            await clearDiscussionMessages();
           }
         } catch (error) {
           setStatus(statusEl, error.message, "error");
@@ -127,25 +160,60 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!text) {
       throw new Error("请输入消息内容。");
     }
+    if (currentMode === "discussion") {
+      await sendDiscussionMessage(text);
+      return;
+    }
+    await sendWritingMessage(text);
+  }
 
+  async function sendDiscussionMessage(text) {
+    setBusy(actionButtons, true);
+    setStatus(statusEl, "正在记录讨论…", "info");
+    sendInput.value = "";
+
+    const userNode = appendMessageToContainer(discussionMessagesEl, "user", text);
+    const assistantNode = appendMessageToContainer(discussionMessagesEl, "assistant", "", { streaming: true });
+
+    try {
+      const payload = await apiRequest(
+        "POST",
+        `/api/projects/${encodeURIComponent(projectId)}/discussion/send`,
+        { text },
+      );
+      finishStreamingMessage(assistantNode, payload.reply || "");
+      discussionState = payload;
+      renderDiscussionState(discussionState);
+      setStatus(statusEl, "讨论回复已记录。", "info");
+    } catch (error) {
+      assistantNode.closest(".message")?.remove();
+      userNode.closest(".message")?.remove();
+      sendInput.value = text;
+      throw error;
+    } finally {
+      setBusy(actionButtons, false);
+    }
+  }
+
+  async function sendWritingMessage(text) {
     setBusy(actionButtons, true);
     setStatus(statusEl, "正在生成回复…", "info");
     sendInput.value = "";
 
-    const userNode = appendMessage("user", text);
-    const assistantNode = appendMessage("assistant", "", { streaming: true });
+    const userNode = appendMessageToContainer(writingMessagesEl, "user", text);
+    const assistantNode = appendMessageToContainer(writingMessagesEl, "assistant", "", { streaming: true });
     let streamedText = "";
     let donePayload = null;
     let streamError = null;
 
     try {
       await streamPost(
-        `/api/projects/${encodeURIComponent(projectId)}/send/stream`,
+        `/api/projects/${encodeURIComponent(projectId)}/writing/send/stream`,
         { text },
         {
           onToken(token) {
             streamedText += token;
-            updateMessageBody(assistantNode, streamedText);
+            updateMessageBody(writingMessagesEl, assistantNode, streamedText);
           },
           onDone(payload) {
             donePayload = payload;
@@ -184,6 +252,32 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     await refreshAll();
+  }
+
+  function setMode(nextMode) {
+    currentMode = nextMode === "discussion" ? "discussion" : "writing";
+    modeButtons.forEach((button) => {
+      const active = button.dataset.mode === currentMode;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    writingMessagesEl?.classList.toggle("hidden", currentMode !== "writing");
+    discussionMessagesEl?.classList.toggle("hidden", currentMode !== "discussion");
+    discussionWeakHintEl?.classList.toggle("hidden", currentMode !== "discussion");
+    [adoptPanel, fixPanel, scenePanel].forEach((panel) => {
+      panel?.classList.toggle("is-weakened", currentMode === "discussion");
+    });
+    if (modeDescription) {
+      modeDescription.textContent =
+        currentMode === "discussion"
+          ? "当前为讨论模式：消息会写入 discussion 轨，并可随时刷新 Discussion Brief。"
+          : "当前为写作模式：会生成候选正文，并保持 SSE 流式体验。";
+    }
+    if (currentMode === "discussion") {
+      renderDiscussionState(discussionState);
+    } else {
+      renderWritingSession(writingSession);
+    }
   }
 
   function updateSceneSuggestion(suggestion) {
@@ -381,19 +475,47 @@ document.addEventListener("DOMContentLoaded", () => {
       `/api/projects/${encodeURIComponent(projectId)}/config`,
       body,
     );
-    renderConfigViews(payload.config);
+    configState = payload.config;
+    renderConfigViews(configState);
     setStatus(statusEl, payload.message || "配置已更新。", "info");
   }
 
+  async function refreshDiscussionBrief() {
+    discussionState = await apiRequest(
+      "POST",
+      `/api/projects/${encodeURIComponent(projectId)}/discussion/refresh`,
+    );
+    renderDiscussionState(discussionState);
+    setStatus(statusEl, "Discussion Brief 已刷新。", "info");
+  }
+
+  async function clearDiscussionMessages() {
+    discussionState = await apiRequest(
+      "POST",
+      `/api/projects/${encodeURIComponent(projectId)}/discussion/clear`,
+    );
+    renderDiscussionState(discussionState);
+    setStatus(statusEl, "讨论原始消息已清空。", "info");
+  }
+
   async function refreshAll() {
-    const [session, meta, canon, synopsis, manuscripts, config] = await Promise.all([
+    const [session, meta, canon, synopsis, manuscripts, config, discussion] = await Promise.all([
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/session`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/meta`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/canon`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/synopsis`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/manuscripts`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/config`),
+      apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/discussion/get`),
     ]);
+
+    writingSession = session;
+    discussionState = discussion;
+    metaState = meta;
+    canonState = canon;
+    synopsisState = synopsis;
+    manuscriptsState = manuscripts;
+    configState = config;
 
     document.getElementById("meta-title").textContent = meta.title || projectId;
     document.getElementById("meta-style").textContent = meta.style || "";
@@ -403,28 +525,50 @@ document.addEventListener("DOMContentLoaded", () => {
     );
     document.getElementById("budget-notice").textContent = session.budget_notice || "无";
 
-    document.getElementById("writing-progress").innerHTML = renderWritingProgress(
-      session,
-      manuscripts,
-      synopsis,
-    );
+    renderWritingSession(writingSession);
+    renderDiscussionState(discussionState);
 
-    renderMessages(session.messages || []);
-    adoptText.value = session.last_candidate || "";
-
-    document.getElementById("meta-summary").innerHTML = renderMetaSummary(meta);
-    document.getElementById("canon-summary").innerHTML = renderCanonSummary(canon);
-    document.getElementById("synopsis-summary").innerHTML = renderSynopsisSummary(synopsis);
+    document.getElementById("meta-summary").innerHTML = renderMetaSummary(metaState);
+    document.getElementById("canon-summary").innerHTML = renderCanonSummary(canonState);
+    document.getElementById("synopsis-summary").innerHTML = renderSynopsisSummary(synopsisState);
     document.getElementById("manuscript-list").innerHTML = renderManuscriptList(
-      manuscripts,
+      manuscriptsState,
       session.scene_id,
     );
 
-    document.getElementById("meta-json").textContent = formatJson(meta);
-    document.getElementById("canon-json").textContent = formatJson(canon);
-    document.getElementById("synopsis-json").textContent = formatJson(synopsis);
+    document.getElementById("meta-json").textContent = formatJson(metaState);
+    document.getElementById("canon-json").textContent = formatJson(canonState);
+    document.getElementById("synopsis-json").textContent = formatJson(synopsisState);
 
-    renderConfigViews(config);
+    renderConfigViews(configState);
+  }
+
+  function renderWritingSession(session) {
+    if (!session) {
+      return;
+    }
+    document.getElementById("writing-progress").innerHTML = renderWritingProgress(
+      session,
+      manuscriptsState || { scenes: [] },
+      synopsisState || { scenes: [] },
+    );
+    renderMessagesInContainer(
+      writingMessagesEl,
+      session.messages || [],
+      "暂无对话，发送第一条消息开始写作。",
+    );
+    adoptText.value = session.last_candidate || "";
+  }
+
+  function renderDiscussionState(payload) {
+    if (discussionBriefEl) {
+      discussionBriefEl.innerHTML = renderDiscussionBrief(payload?.brief || {});
+    }
+    renderMessagesInContainer(
+      discussionMessagesEl,
+      payload?.messages || [],
+      "暂无讨论消息，切到讨论模式后发送第一条消息开始梳理。",
+    );
   }
 
   function renderConfigViews(configPayload) {
@@ -435,10 +579,12 @@ document.addEventListener("DOMContentLoaded", () => {
     populateConfigForm(configPayload);
   }
 
-  function renderMessages(messages) {
-    const container = document.getElementById("messages");
+  function renderMessagesInContainer(container, messages, emptyHint) {
+    if (!container) {
+      return;
+    }
     if (!messages.length) {
-      container.innerHTML = '<p class="hint">暂无对话，发送第一条消息开始写作。</p>';
+      container.innerHTML = `<p class="hint">${escapeHtml(emptyHint)}</p>`;
       return;
     }
     container.innerHTML = messages
@@ -459,22 +605,24 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   }
 
-  function appendMessage(role, content, options = {}) {
-    const container = document.getElementById("messages");
-    const hint = container.querySelector(".hint");
+  function appendMessageToContainer(container, role, content, options = {}) {
+    const hint = container?.querySelector(".hint");
     if (hint) {
       hint.remove();
     }
-    container.insertAdjacentHTML("beforeend", renderMessageHtml(role, content, options));
-    const node = container.lastElementChild?.querySelector(".message-body");
-    container.scrollTop = container.scrollHeight;
+    container?.insertAdjacentHTML("beforeend", renderMessageHtml(role, content, options));
+    const node = container?.lastElementChild?.querySelector(".message-body");
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
     return node;
   }
 
-  function updateMessageBody(node, content) {
+  function updateMessageBody(container, node, content) {
     setMessageBody(node, content, { markdown: false, streaming: true });
-    const container = document.getElementById("messages");
-    container.scrollTop = container.scrollHeight;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }
 
   function finishStreamingMessage(node, content) {

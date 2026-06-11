@@ -155,6 +155,12 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("data-action='undo'", project_html)
             self.assertIn("config-form", project_html)
             self.assertIn("writing-progress", project_html)
+            self.assertIn("mode-toggle", project_html)
+            self.assertIn("data-mode='writing'", project_html)
+            self.assertIn("data-mode='discussion'", project_html)
+            self.assertIn("discussion-brief", project_html)
+            self.assertIn("discussion-messages", project_html)
+            self.assertIn("discussion-weak-hint", project_html)
             self.assertNotIn("id='config-summary' class='kv-list'", project_html)
 
     def test_static_assets_are_served(self) -> None:
@@ -170,10 +176,18 @@ class WebAppIntegrationTest(unittest.TestCase):
             js = client.get("/static/project.js")
             self.assertEqual(js.status_code, 200)
             self.assertIn(b"refreshAll", js.body)
+            self.assertIn(b"/discussion/send", js.body)
+            self.assertIn(b"/discussion/get", js.body)
+            self.assertIn(b"/discussion/refresh", js.body)
+            self.assertIn(b"/writing/send/stream", js.body)
+            self.assertIn(b"mode-toggle", js.body)
+            self.assertIn(b"setMode(", js.body)
 
             render_js = client.get("/static/render.js")
             self.assertEqual(render_js.status_code, 200)
             self.assertIn(b"renderMetaSummary", render_js.body)
+            self.assertIn(b"renderDiscussionBrief", render_js.body)
+            self.assertIn(b"renderDiscussionMessages", render_js.body)
 
             missing = client.get("/static/not-found.js")
             self.assertEqual(missing.status_code, 404)

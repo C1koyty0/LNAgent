@@ -571,21 +571,28 @@
 
 **任务清单**：
 
-- [ ] D6.1 新增讨论 / 写作 toggle
-- [ ] D6.2 discussion brief 面板展示
-- [ ] D6.3 writing candidate 面板与 adopt 操作保持可用
-- [ ] D6.4 为页面行为补验收测试
+- [x] D6.1 新增讨论 / 写作 toggle
+- [x] D6.2 discussion brief 面板展示
+- [x] D6.3 writing candidate 面板与 adopt 操作保持可用
+- [x] D6.4 为页面行为补验收测试
 
 **验收**：
 
-- [ ] 前端可显式切换 discussion / writing
-- [ ] discussion 返回不覆盖 writing candidate
-- [ ] writing 仍可走通 send -> adopt -> commit
+- [x] 前端可显式切换 discussion / writing
+- [x] discussion 返回不覆盖 writing candidate
+- [x] writing 仍可走通 send -> adopt -> commit
 
-**验收命令（建议）**：
+**验收命令（已执行）**：
 
-- `python -m unittest tests.test_web_app -v`
-- 后续补充 Playwright E2E
+- `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_home_page_and_project_page_render tests.test_web_app.WebAppIntegrationTest.test_static_assets_are_served -v`
+- `python -m unittest tests.test_web_app tests.test_discussion_brief tests.test_memory_store -v`
+- `curl --noproxy '*' -X POST http://127.0.0.1:8010/api/projects/smoke_web_d2/discussion/refresh`
+
+**验收备注**：
+
+- 浏览器冒烟已验证：项目页可从首页进入 `/projects/smoke_web_d2`，默认进入写作模式。
+- 讨论模式下可发送消息，响应写入 `discussion` 轨且不会覆盖 `writing candidate`。
+- `Discussion Brief` 可通过刷新接口同步为结构化待办 / 约束 / 待解问题。
 
 ---
 

@@ -74,6 +74,62 @@ a {
   box-sizing: border-box;
 }
 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.panel-header h2 {
+  margin: 0;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #faf7f2;
+}
+
+.mode-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  background: transparent;
+}
+
+.mode-button.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mode-button:hover:not(:disabled):not(.is-active) {
+  background: #ebe4d8;
+}
+
+.discussion-brief-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.discussion-brief-dirty {
+  color: #8c5a15;
+}
+
+.discussion-brief-clean {
+  color: var(--accent);
+}
+
+.panel.is-weakened {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
 .panel h2,
 .panel h3 {
   margin: 0 0 0.75rem;
