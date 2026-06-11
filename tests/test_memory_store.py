@@ -1467,6 +1467,60 @@ class NovelSessionTest(unittest.TestCase):
             self.assertEqual(loaded.adopted_prose, "莉亚学会了影步。\n")
             self.assertEqual(len(loaded.adopt_stack), 1)
             self.assertTrue(loaded.adopt_stack[0].accepted_canon)
+            self.assertEqual(store.load_discussion_messages("scene_001"), [])
+
+    def test_commit_adopt_preserves_discussion_brief(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="异世界学院", world_rules=["禁止高阶魔法"], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                prompt_builder=_CapturingPromptBuilder(),
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+            )
+            session.send_discussion("讨论一下这段节拍")
+            brief = DiscussionBrief(
+                scene_id="scene_001",
+                todo_items=["写开篇"],
+                constraints=["不要引入新角色"],
+                open_questions=[],
+                dirty=False,
+                updated_at="2026-06-10T00:00:00Z",
+            )
+            store.save_discussion_brief("scene_001", brief)
+            session.send("写开篇")
+
+            proposal = session.prepare_adopt("莉亚学会了影步。")
+            session.commit_adopt(proposal, accepted_canon=True)
+
+            self.assertEqual(store.load_discussion_messages("scene_001"), [])
+            loaded_brief = store.load_discussion_brief("scene_001")
+            self.assertEqual(loaded_brief.todo_items, ["写开篇"])
+            self.assertEqual(loaded_brief.constraints, ["不要引入新角色"])
+
+    def test_undo_does_not_restore_discussion_messages_after_adopt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="异世界学院", world_rules=["禁止高阶魔法"], style="轻松")
+            session = NovelSession(
+                store,
+                _FakeModel(),
+                meta,
+                prompt_builder=_CapturingPromptBuilder(),
+                canon_extractor=_FakeCanonExtractor(HotCanon.empty()),
+            )
+            session.send_discussion("讨论一下这段节拍")
+            session.send("写开篇")
+
+            proposal = session.prepare_adopt("莉亚学会了影步。")
+            session.commit_adopt(proposal, accepted_canon=True)
+            session.undo_last_adopt()
+
+            self.assertEqual(store.load_discussion_messages("scene_001"), [])
 
     def test_commit_adopt_rejects_canon_patch_but_keeps_manuscript(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

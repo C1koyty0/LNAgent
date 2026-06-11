@@ -339,6 +339,7 @@ class NovelSession:
                 accepted_canon=accepted_canon,
             )
         )
+        self._store.clear_discussion_messages(self._buffer.scene_id)
         self._buffer.clear_candidate()
         self._turns_since_last_adopt = 0
         self._persist_session()

@@ -471,37 +471,36 @@
 - adopt commit 后清空 discussion raw chat
 - 保留 discussion brief
 - undo 不恢复 raw chat
-- scene switch 完成后清空当前 scene 的 raw chat 与 brief
+- scene switch 的 scene 级 discussion 隔离由 `discussion/<scene_id>/` 目录结构自然保证，本阶段不额外清理旧 scene brief
 
 **预期效果**：
 
 - discussion 生命周期与当前 scene 对齐
 - adopt 后上下文更干净
-- scene switch 后 discussion 不跨 scene 残留
+- undo 不会意外恢复已清理的 raw discussion
 
 **建议文件**：
 
 - Modify: `lnagent/session.py`
-- Modify: `lnagent/memory/store.py`
-- Test: `tests/test_dual_track_session.py`
+- Test: `tests/test_memory_store.py`
 
 **任务清单**：
 
-- [ ] D4.1 在 adopt commit 中接入 discussion raw clear
-- [ ] D4.2 明确 undo 不恢复 discussion raw
-- [ ] D4.3 在 scene switch 完成路径中清空 discussion raw + brief
-- [ ] D4.4 为上述联动行为补测试
+- [x] D4.1 在 adopt commit 中接入 discussion raw clear
+- [x] D4.2 明确 undo 不恢复 discussion raw
+- [x] D4.3 保留 discussion brief，不随 adopt 一起清理
+- [x] D4.4 为上述联动行为补测试
 
 **验收**：
 
-- [ ] adopt commit 后 raw discussion chat 为空
-- [ ] adopt commit 后 brief 仍存在
-- [ ] undo 后 raw discussion chat 不恢复
-- [ ] scene switch 后 discussion 状态为空
+- [x] adopt commit 后 raw discussion chat 为空
+- [x] adopt commit 后 brief 仍存在
+- [x] undo 后 raw discussion chat 不恢复
+- [x] scene switch 不需要额外清理才能保证 discussion 不跨 scene 污染
 
 **验收命令（建议）**：
 
-- `python -m unittest tests.test_dual_track_session -v`
+- `python -m unittest tests.test_memory_store.NovelSessionTest -v`
 
 ---
 
