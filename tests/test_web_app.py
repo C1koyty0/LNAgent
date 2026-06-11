@@ -311,6 +311,140 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertEqual(state_payload["last_candidate"], "完整流式正文")
             self.assertEqual(state_payload["messages"][-1]["content"], "完整流式正文")
 
+    def test_discussion_routes_round_trip_refresh_and_clear(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(
+                Path(tmp),
+                replies=[
+                    "先把学院纪律讨论清楚。",
+                    json.dumps(
+                        {
+                            "todo_items": ["确定学院纪律"],
+                            "constraints": ["禁止公开私斗"],
+                            "open_questions": ["谁来执行纪律"],
+                        },
+                        ensure_ascii=False,
+                    ),
+                ],
+            )
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            send_response = client.post(
+                "/api/projects/demo/discussion/send",
+                json={"text": "先讨论学院纪律"},
+            )
+            self.assertEqual(send_response.status_code, 200)
+            send_payload = send_response.get_json()
+            self.assertEqual(send_payload["reply"], "先把学院纪律讨论清楚。")
+            self.assertEqual(send_payload["scene_id"], "scene_001")
+            self.assertEqual(
+                [item["content"] for item in send_payload["messages"]],
+                ["先讨论学院纪律", "先把学院纪律讨论清楚。"],
+            )
+            self.assertTrue(send_payload["brief"]["dirty"])
+
+            session_response = client.get("/api/projects/demo/session")
+            session_payload = session_response.get_json()
+            self.assertIsNone(session_payload["last_candidate"])
+            self.assertEqual(session_payload["messages"], [])
+
+            get_response = client.get("/api/projects/demo/discussion/get")
+            self.assertEqual(get_response.status_code, 200)
+            get_payload = get_response.get_json()
+            self.assertEqual(get_payload["scene_id"], "scene_001")
+            self.assertEqual(len(get_payload["messages"]), 2)
+            self.assertTrue(get_payload["brief"]["dirty"])
+
+            refresh_response = client.post("/api/projects/demo/discussion/refresh")
+            self.assertEqual(refresh_response.status_code, 200)
+            refresh_payload = refresh_response.get_json()
+            self.assertEqual(refresh_payload["brief"]["todo_items"], ["确定学院纪律"])
+            self.assertEqual(refresh_payload["brief"]["constraints"], ["禁止公开私斗"])
+            self.assertEqual(refresh_payload["brief"]["open_questions"], ["谁来执行纪律"])
+            self.assertFalse(refresh_payload["brief"]["dirty"])
+
+            clear_response = client.post("/api/projects/demo/discussion/clear")
+            self.assertEqual(clear_response.status_code, 200)
+            clear_payload = clear_response.get_json()
+            self.assertEqual(clear_payload["messages"], [])
+            self.assertEqual(clear_payload["brief"]["todo_items"], ["确定学院纪律"])
+            self.assertFalse(clear_payload["brief"]["dirty"])
+
+    def test_writing_route_and_legacy_send_alias_share_behavior(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(
+                Path(tmp),
+                replies=[
+                    "先讨论人物关系。",
+                    json.dumps({"todo_items": ["先定人物关系"]}, ensure_ascii=False),
+                    "第一版候选正文",
+                    "第二版候选正文",
+                ],
+            )
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            client.post(
+                "/api/projects/demo/discussion/send",
+                json={"text": "先讨论人物关系"},
+            )
+
+            writing_response = client.post(
+                "/api/projects/demo/writing/send",
+                json={"text": "请写第一段"},
+            )
+            self.assertEqual(writing_response.status_code, 200)
+            writing_payload = writing_response.get_json()
+            self.assertEqual(writing_payload["reply"], "第一版候选正文")
+            self.assertEqual(writing_payload["last_candidate"], "第一版候选正文")
+
+            discussion_state = client.get("/api/projects/demo/discussion/get").get_json()
+            self.assertEqual(len(discussion_state["messages"]), 2)
+            self.assertEqual(discussion_state["brief"]["todo_items"], ["先定人物关系"])
+            self.assertFalse(discussion_state["brief"]["dirty"])
+
+            legacy_response = client.post(
+                "/api/projects/demo/send",
+                json={"text": "继续写第二段"},
+            )
+            self.assertEqual(legacy_response.status_code, 200)
+            legacy_payload = legacy_response.get_json()
+            self.assertEqual(legacy_payload["reply"], "第二版候选正文")
+            self.assertEqual(legacy_payload["last_candidate"], "第二版候选正文")
+
+    def test_writing_stream_route_and_legacy_alias_keep_sse_behavior(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(Path(tmp), replies=["流式正文", "兼容流式正文"])
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            writing_stream = client.post(
+                "/api/projects/demo/writing/send/stream",
+                json={"text": "请续写"},
+            )
+            self.assertEqual(writing_stream.status_code, 200)
+            self.assertIn("text/event-stream", writing_stream.content_type)
+            writing_body = writing_stream.get_data(as_text=True)
+            self.assertIn("event: token", writing_body)
+            self.assertIn("event: done", writing_body)
+            self.assertIn("流式正文", writing_body)
+
+            legacy_stream = client.post(
+                "/api/projects/demo/send/stream",
+                json={"text": "再续写一段"},
+            )
+            self.assertEqual(legacy_stream.status_code, 200)
+            self.assertIn("text/event-stream", legacy_stream.content_type)
+            legacy_body = legacy_stream.get_data(as_text=True)
+            self.assertIn("event: token", legacy_body)
+            self.assertIn("event: done", legacy_body)
+            self.assertIn("兼容流式正文", legacy_body)
+
+            state_response = client.get("/api/projects/demo/session")
+            state_payload = state_response.get_json()
+            self.assertEqual(state_payload["last_candidate"], "兼容流式正文")
+
     def test_create_project_via_api(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app = _build_app(Path(tmp), create_demo=False)

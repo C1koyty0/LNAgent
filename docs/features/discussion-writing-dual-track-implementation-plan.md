@@ -528,16 +528,16 @@
 
 **任务清单**：
 
-- [ ] D5.1 新增 `discussion/send` / `discussion/get` / `discussion/refresh` / `discussion/clear`
-- [ ] D5.2 新增 `writing/send` / `writing/send/stream`
-- [ ] D5.3 保留现有 `/send` 兼容映射到 writing 路径
-- [ ] D5.4 为 discussion / writing API 补回归测试
+- [x] D5.1 新增 `discussion/send` / `discussion/get` / `discussion/refresh` / `discussion/clear`
+- [x] D5.2 新增 `writing/send` / `writing/send/stream`
+- [x] D5.3 保留现有 `/send` 兼容映射到 writing 路径
+- [x] D5.4 为 discussion / writing API 补回归测试
 
 **验收**：
 
-- [ ] API 可显式区分 discussion 与 writing
-- [ ] discussion API 不污染 candidate 状态
-- [ ] writing API 继续支持同步与 SSE 流式发送
+- [x] API 可显式区分 discussion 与 writing
+- [x] discussion API 不污染 candidate 状态
+- [x] writing API 继续支持同步与 SSE 流式发送
 
 **验收命令（建议）**：
 

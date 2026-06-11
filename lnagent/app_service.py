@@ -15,7 +15,7 @@ from lnagent.llm import create_chat_model
 from lnagent.memory.canon_extractor import CanonExtractor
 from lnagent.memory.cold_archive import ColdArchiveExtractor, ColdProposal
 from lnagent.memory.context_budget import format_budget_notice
-from lnagent.memory.models import NovelMeta
+from lnagent.memory.models import DiscussionBrief, NovelMeta
 from lnagent.memory.scene_switch import SceneSwitchAdvisor
 from lnagent.memory.store import JsonMemoryStore
 from lnagent.cli.config import (
@@ -212,25 +212,72 @@ class AppService:
         }
 
     def send_message(self, project_id: str, text: str) -> dict:
+        return self.send_writing_message(project_id, text)
+
+    def send_writing_message(self, project_id: str, text: str) -> dict:
         handle = self.open_project(project_id)
-        reply = handle.session.send(text)
+        reply = handle.session.send_writing(str(text))
         return self._build_send_payload(handle, reply)
 
+    def send_discussion_message(self, project_id: str, text: str) -> dict:
+        handle = self.open_project(project_id)
+        reply = handle.session.send_discussion(str(text))
+        return {
+            "reply": reply,
+            **self._build_discussion_payload(handle),
+        }
+
+    def get_discussion_state(self, project_id: str) -> dict:
+        handle = self.open_project(project_id)
+        return self._build_discussion_payload(handle)
+
+    def refresh_discussion_brief(self, project_id: str) -> dict:
+        handle = self.open_project(project_id)
+        handle.session._ensure_fresh_discussion_brief()
+        return self._build_discussion_payload(handle)
+
+    def clear_discussion_messages(self, project_id: str) -> dict:
+        handle = self.open_project(project_id)
+        scene_id = handle.session.scene_id
+        brief = handle.store.load_discussion_brief(scene_id)
+        if brief.dirty:
+            brief.dirty = False
+            handle.store.save_discussion_brief(scene_id, brief)
+        handle.store.clear_discussion_messages(scene_id)
+        return self._build_discussion_payload(handle)
+
     def stream_message(self, project_id: str, text: str) -> Iterator[dict[str, Any]]:
+        yield from self.stream_writing_message(project_id, text)
+
+    def stream_writing_message(self, project_id: str, text: str) -> Iterator[dict[str, Any]]:
         try:
             handle = self.open_project(project_id)
         except ValueError as exc:
             yield {"event": "error", "data": {"error": str(exc)}}
             return
 
+        yield from self._stream_session_reply(
+            handle,
+            lambda: handle.session.stream_send_writing(str(text)),
+            lambda reply: self._build_send_payload(handle, reply),
+        )
+
+    def _stream_session_reply(
+        self,
+        handle: SessionHandle,
+        stream_factory: Callable[[], Iterator[str]],
+        done_payload_factory: Callable[[str], dict[str, Any]],
+    ) -> Iterator[dict[str, Any]]:
         event_queue: queue.SimpleQueue[_QueueEvent] = queue.SimpleQueue()
 
         def worker() -> None:
             try:
-                for token in handle.session.stream_send(text):
+                for token in stream_factory():
                     event_queue.put(_QueueEvent(payload={"event": "token", "data": {"text": token}}))
                 reply = handle.session.last_candidate or ""
-                event_queue.put(_QueueEvent(payload={"event": "done", "data": self._build_send_payload(handle, reply)}))
+                event_queue.put(
+                    _QueueEvent(payload={"event": "done", "data": done_payload_factory(reply)})
+                )
             except ValueError as exc:
                 event_queue.put(_QueueEvent(payload={"event": "error", "data": {"error": str(exc)}}))
             except Exception as exc:
@@ -260,6 +307,16 @@ class AppService:
                 "should_suggest": suggestion.should_suggest,
                 "reason": suggestion.reason,
             },
+        }
+
+    def _build_discussion_payload(self, handle: SessionHandle) -> dict:
+        scene_id = handle.session.scene_id
+        messages = handle.store.load_discussion_messages(scene_id)
+        brief = handle.store.load_discussion_brief(scene_id)
+        return {
+            "scene_id": scene_id,
+            "messages": [message.to_dict() for message in messages],
+            "brief": brief.to_dict(),
         }
 
     def prepare_adopt(self, project_id: str, text: str | None) -> dict:

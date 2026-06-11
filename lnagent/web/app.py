@@ -176,8 +176,26 @@ class SimpleWebApp:
             return self._sse_response(
                 self._service.stream_message(project_id, str(payload.get("text", "")))
             )
+        if method == "POST" and suffix == "/writing/send/stream":
+            return self._sse_response(
+                self._service.stream_writing_message(project_id, str(payload.get("text", "")))
+            )
         if method == "POST" and suffix == "/send":
             return self._json_response(self._service.send_message(project_id, payload.get("text", "")))
+        if method == "POST" and suffix == "/writing/send":
+            return self._json_response(
+                self._service.send_writing_message(project_id, payload.get("text", ""))
+            )
+        if method == "GET" and suffix == "/discussion/get":
+            return self._json_response(self._service.get_discussion_state(project_id))
+        if method == "POST" and suffix == "/discussion/send":
+            return self._json_response(
+                self._service.send_discussion_message(project_id, payload.get("text", ""))
+            )
+        if method == "POST" and suffix == "/discussion/refresh":
+            return self._json_response(self._service.refresh_discussion_brief(project_id))
+        if method == "POST" and suffix == "/discussion/clear":
+            return self._json_response(self._service.clear_discussion_messages(project_id))
         if method == "POST" and suffix == "/adopt/prepare":
             return self._json_response(self._service.prepare_adopt(project_id, payload.get("text")))
         if method == "POST" and suffix == "/adopt/commit":
