@@ -427,33 +427,33 @@
 
 **任务清单**：
 
-- [ ] D3.1 新增 `DiscussionBriefRefresher` 组件与 JSON 解析器
-- [ ] D3.2 为 refresher 补独立单元测试
-- [ ] D3.3 在 discussion send 后标记 brief dirty
-- [ ] D3.4 在 writing send / stream_send 前自动刷新 dirty brief
-- [ ] D3.5 刷新成功后保存新 brief、写入 `updated_at`、置 `dirty=false`
-- [ ] D3.6 刷新失败时回退到旧 brief / 无 brief，不阻塞写作
-- [ ] D3.7 将最终 brief 注入 `build_writing(..., discussion_brief=...)`
-- [ ] D3.8 为 session 桥接行为补回归测试
+- [x] D3.1 新增 `DiscussionBriefRefresher` 组件与 JSON 解析器
+- [x] D3.2 为 refresher 补独立单元测试
+- [x] D3.3 在 discussion send 后标记 brief dirty
+- [x] D3.4 在 writing send / stream_send 前自动刷新 dirty brief
+- [x] D3.5 刷新成功后保存新 brief、写入 `updated_at`、置 `dirty=false`
+- [x] D3.6 刷新失败时回退到旧 brief / 无 brief，不阻塞写作
+- [x] D3.7 将最终 brief 注入 `build_writing(..., discussion_brief=...)`
+- [x] D3.8 为 session 桥接行为补回归测试
 
 **测试清单**：
 
-- [ ] T3.1 `DiscussionBriefRefresher` 能将合法 JSON 解析为 `DiscussionBrief`
-- [ ] T3.2 缺失列表字段时默认为空列表
-- [ ] T3.3 非对象根节点 / 非法 JSON 会抛刷新异常
-- [ ] T3.4 discussion send 后 brief 被标记为 `dirty=true`
-- [ ] T3.5 writing send 前会刷新 dirty brief 并将结果注入 prompt builder
-- [ ] T3.6 writing send 在 brief clean 时不会重复刷新
-- [ ] T3.7 writing send 不直接读取 raw discussion messages
-- [ ] T3.8 刷新失败时 writing 仍继续，并回退旧 brief / 无 brief
-- [ ] T3.9 stream_send_writing() 同样会在开始前执行 auto-refresh
+- [x] T3.1 `DiscussionBriefRefresher` 能将合法 JSON 解析为 `DiscussionBrief`
+- [x] T3.2 缺失列表字段时默认为空列表
+- [x] T3.3 非对象根节点 / 非法 JSON 会抛刷新异常
+- [x] T3.4 discussion send 后 brief 被标记为 `dirty=true`
+- [x] T3.5 writing send 前会刷新 dirty brief 并将结果注入 prompt builder
+- [x] T3.6 writing send 在 brief clean 时不会重复刷新
+- [x] T3.7 writing send 不直接读取 raw discussion messages
+- [x] T3.8 刷新失败时 writing 仍继续，并回退旧 brief / 无 brief
+- [x] T3.9 stream_send_writing() 同样会在开始前执行 auto-refresh
 
 **验收**：
 
-- [ ] discussion 后 brief 可标记 dirty
-- [ ] writing 前可自动得到最新 brief
-- [ ] writing 不直接读取 raw discussion messages
-- [ ] brief 刷新失败不阻塞写作
+- [x] discussion 后 brief 可标记 dirty
+- [x] writing 前可自动得到最新 brief
+- [x] writing 不直接读取 raw discussion messages
+- [x] brief 刷新失败不阻塞写作
 
 **验收命令（建议）**：
 
@@ -462,9 +462,9 @@
 
 ---
 
-## Phase D4：adopt / undo / scene switch 的 discussion 联动
+## Phase D4：adopt / undo / scene switch 联动
 
-**目标**：把 discussion 轨接入现有显式作者控制流程，明确 adopt、undo、scene switch 时的清理行为。
+**目标**：明确 discussion raw chat 在 adopt / undo / scene 级切换中的生命周期。
 
 **做什么**：
 

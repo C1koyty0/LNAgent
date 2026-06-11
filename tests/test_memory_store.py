@@ -34,6 +34,11 @@ from lnagent.memory.models import (
     previous_scene_id,
 )
 from lnagent.memory.prompt import PromptContextBuilder
+from lnagent.memory.short_term import ShortTermBuffer, build_prose_from_records
+from lnagent.memory.store import JsonMemoryStore
+from lnagent.memory.discussion_brief import DiscussionBriefRefresher, DiscussionBriefRefreshError
+
+from lnagent.memory.prompt import PromptContextBuilder
 from lnagent.memory.scene_switch import SceneSwitchAdvisor
 from lnagent.memory.short_term import ShortTermBuffer, build_prose_from_records
 from lnagent.memory.store import JsonMemoryStore
@@ -1285,6 +1290,151 @@ class NovelSessionTest(unittest.TestCase):
             self.assertEqual(len(seen), 1)
             self.assertEqual(seen[0].content, "先前讨论")
 
+    # ── D3: discussion dirty + auto-refresh bridge ──
+
+    def test_send_discussion_marks_brief_dirty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            session = NovelSession(
+                store,
+                _FixedResponseModel("讨论回复"),
+                meta,
+            )
+
+            session.send_discussion("讨论一下这段节拍")
+
+            brief = store.load_discussion_brief("scene_001")
+            self.assertTrue(brief.dirty)
+
+    def test_send_writing_refreshes_dirty_brief_before_building_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            refresher = _FakeBriefRefresher()
+            prompt_builder = _CapturingPromptBuilder()
+            session = NovelSession(
+                store,
+                _SequenceResponseModel(["写作回复"]),
+                meta,
+                prompt_builder=prompt_builder,
+                discussion_brief_refresher=refresher,
+            )
+
+            session.send_discussion("讨论")
+            self.assertTrue(store.load_discussion_brief("scene_001").dirty)
+
+            session.send_writing("继续写")
+
+            self.assertEqual(refresher.refresh_calls, 1)
+            self.assertTrue(prompt_builder.seen_discussion_brief is not None)
+            self.assertFalse(
+                prompt_builder.seen_discussion_brief.dirty  # type: ignore[union-attr]
+            )
+
+    def test_send_writing_uses_clean_brief_without_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            refresher = _FakeBriefRefresher()
+            prompt_builder = _CapturingPromptBuilder()
+            session = NovelSession(
+                store,
+                _SequenceResponseModel(["写作回复"]),
+                meta,
+                prompt_builder=prompt_builder,
+                discussion_brief_refresher=refresher,
+            )
+
+            clean_brief = DiscussionBrief(
+                scene_id="scene_001",
+                todo_items=["写开篇"],
+                constraints=[],
+                open_questions=[],
+                dirty=False,
+                updated_at="2026-01-01T00:00:00Z",
+            )
+            store.save_discussion_brief("scene_001", clean_brief)
+
+            session.send_writing("继续写")
+
+            self.assertEqual(refresher.refresh_calls, 0)
+
+    def test_send_writing_falls_back_to_old_brief_when_refresh_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            refresher = _FakeBriefRefresher(should_fail=True)
+            prompt_builder = _CapturingPromptBuilder()
+            session = NovelSession(
+                store,
+                _SequenceResponseModel(["写作回复"]),
+                meta,
+                prompt_builder=prompt_builder,
+                discussion_brief_refresher=refresher,
+            )
+
+            old_brief = DiscussionBrief(
+                scene_id="scene_001",
+                todo_items=["旧待写事项"],
+                constraints=["旧约束"],
+                open_questions=[],
+                dirty=False,
+                updated_at="2026-01-01T00:00:00Z",
+            )
+            store.save_discussion_brief("scene_001", old_brief)
+
+            session.send_discussion("讨论")
+
+            reply = session.send_writing("继续写")
+
+            self.assertEqual(reply, "写作回复")
+            self.assertEqual(refresher.refresh_calls, 1)
+            seen = prompt_builder.seen_discussion_brief
+            self.assertIsNotNone(seen)
+            self.assertEqual(seen.todo_items, ["旧待写事项"])  # type: ignore[union-attr]
+
+    def test_send_writing_without_raw_discussion_skips_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            refresher = _FakeBriefRefresher()
+            session = NovelSession(
+                store,
+                _SequenceResponseModel(["写作回复"]),
+                meta,
+                discussion_brief_refresher=refresher,
+            )
+
+            session.send_writing("继续写")
+
+            self.assertEqual(refresher.refresh_calls, 0)
+
+    def test_stream_send_writing_also_refreshes_dirty_brief(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonMemoryStore(Path(tmp) / "demo")
+            store.ensure_project_layout()
+            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            refresher = _FakeBriefRefresher()
+            session = NovelSession(
+                store,
+                _StreamingModel(["写", "作", "回复"]),
+                meta,
+                discussion_brief_refresher=refresher,
+            )
+
+            session.send_discussion("讨论")
+
+            chunks = list(session.stream_send_writing("继续写"))
+
+            self.assertEqual("".join(chunks), "写作回复")
+            self.assertEqual(refresher.refresh_calls, 1)
+
     def test_commit_adopt_accepts_canon_patch_and_clears_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
@@ -1852,6 +2002,7 @@ class _CapturingPromptBuilder:
         self.seen_writing_buffer_messages: list[ChatMessage] | None = None
         self.seen_discussion_buffer_messages: list[ChatMessage] | None = None
         self.build_calls: list[str] = []
+        self.seen_discussion_brief: DiscussionBrief | None = None
 
     def build(
         self,
@@ -1883,6 +2034,8 @@ class _CapturingPromptBuilder:
         self.build_calls.append("build_writing")
         self.seen_canon = canon
         self.seen_writing_buffer_messages = list(buffer.messages)
+        brief = kwargs.get("discussion_brief")
+        self.seen_discussion_brief = brief if isinstance(brief, DiscussionBrief) else None
         value = kwargs.get("context_config")
         self.seen_context_config = value if isinstance(value, ContextConfig) else None
         tail = kwargs.get("scene_tail")
@@ -1940,6 +2093,34 @@ class _SequenceResponseModel:
             content = self._contents[self._index]
         self._index += 1
         return _FakeResponse(content=content)
+
+
+class _FakeBriefRefresher(DiscussionBriefRefresher):
+    def __init__(self, *, should_fail: bool = False) -> None:
+        self.should_fail = should_fail
+        self.refresh_calls: int = 0
+
+    def refresh(
+        self,
+        scene_id: str,
+        messages: list[ChatMessage],
+        meta: NovelMeta | None = None,
+        canon: HotCanon | None = None,
+        global_summary: str = "",
+        prior_scene_cold: object = None,
+        scene_tail: str | None = None,
+    ) -> DiscussionBrief:
+        self.refresh_calls += 1
+        if self.should_fail:
+            raise DiscussionBriefRefreshError("simulated refresh failure")
+        return DiscussionBrief(
+            scene_id=scene_id,
+            todo_items=["刷新后的待写事项"],
+            constraints=["刷新后的约束"],
+            open_questions=[],
+            dirty=False,
+            updated_at="2026-06-10T00:00:00Z",
+        )
 
 
 class _JsonColdModel:

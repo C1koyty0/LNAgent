@@ -21,6 +21,7 @@ from lnagent.memory.context_budget import BudgetReport
 from lnagent.memory.models import (
     AdoptRecord,
     ChatMessage,
+    DiscussionBrief,
     HotCanon,
     NovelMeta,
     ProjectConfig,
@@ -31,6 +32,11 @@ from lnagent.memory.models import (
 from lnagent.memory.prompt import PromptContextBuilder
 from lnagent.memory.short_term import ShortTermBuffer, build_prose_from_records
 from lnagent.memory.store import JsonMemoryStore
+from lnagent.memory.discussion_brief import (
+    DiscussionBriefModel,
+    DiscussionBriefRefreshError,
+    DiscussionBriefRefresher,
+)
 
 
 class CanonPatchExtractor(Protocol):
@@ -70,6 +76,12 @@ class ReconcileItem:
     proposal: AdoptProposal
 
 
+def _non_empty_or_none(brief: DiscussionBrief) -> DiscussionBrief | None:
+    if brief.todo_items or brief.constraints or brief.open_questions:
+        return brief
+    return None
+
+
 class NovelSession:
     def __init__(
         self,
@@ -80,6 +92,7 @@ class NovelSession:
         prompt_builder: PromptContextBuilder | None = None,
         canon_extractor: CanonPatchExtractor | None = None,
         cold_extractor: ColdArchiveGateway | None = None,
+        discussion_brief_refresher: DiscussionBriefRefresher | None = None,
     ) -> None:
         self._store = store
         self._model = model
@@ -88,6 +101,7 @@ class NovelSession:
         self._prompt_builder = prompt_builder or PromptContextBuilder()
         self._canon_extractor = canon_extractor or CanonExtractor(model)
         self._cold_extractor = cold_extractor or ColdArchiveExtractor(model)
+        self._brief_refresher = discussion_brief_refresher or DiscussionBriefRefresher(model)
         self._buffer = ShortTermBuffer.from_session(
             store.load_session(),
             drop_pending_candidate=True,
@@ -196,6 +210,7 @@ class NovelSession:
     def _prepare_writing_messages(self, user_input: str) -> list:
         canon = self._store.load_canon()
         synopsis = self._store.load_synopsis()
+        discussion_brief = self._ensure_fresh_discussion_brief()
         messages = self._prompt_builder.build_writing(
             meta=self._meta,
             canon=canon,
@@ -205,7 +220,7 @@ class NovelSession:
             prior_scene_cold=self._prior_scene_cold,
             scene_tail=self._scene_tail,
             context_config=self._config.context,
-            discussion_brief=None,
+            discussion_brief=discussion_brief,
         )
         self._last_budget_report = getattr(
             self._prompt_builder,
@@ -247,6 +262,35 @@ class NovelSession:
         content = response.content
         return content if isinstance(content, str) else str(content)
 
+    def _ensure_fresh_discussion_brief(self) -> DiscussionBrief | None:
+        """writing 前确保拿到最新可用 brief（必要时调用 refresher）。"""
+        scene_id = self._buffer.scene_id
+        raw = self._store.load_discussion_messages(scene_id)
+        brief = self._store.load_discussion_brief(scene_id)
+
+        if not raw:
+            return _non_empty_or_none(brief)
+
+        if not brief.dirty:
+            return _non_empty_or_none(brief)
+
+        try:
+            canon = self._store.load_canon()
+            synopsis = self._store.load_synopsis()
+            refreshed = self._brief_refresher.refresh(
+                scene_id=scene_id,
+                messages=raw,
+                meta=self._meta,
+                canon=canon,
+                global_summary=synopsis.global_summary,
+                prior_scene_cold=self._prior_scene_cold,
+                scene_tail=self._scene_tail,
+            )
+            self._store.save_discussion_brief(scene_id, refreshed)
+            return _non_empty_or_none(refreshed)
+        except DiscussionBriefRefreshError:
+            return _non_empty_or_none(brief)
+
     def _complete_writing_send(self, user_input: str, reply: str) -> str:
         self._buffer.append_user(user_input)
         self._buffer.append_assistant(reply)
@@ -263,6 +307,9 @@ class NovelSession:
             self._buffer.scene_id,
             ChatMessage(role="assistant", content=reply),
         )
+        brief = self._store.load_discussion_brief(self._buffer.scene_id)
+        brief.dirty = True
+        self._store.save_discussion_brief(self._buffer.scene_id, brief)
         return reply
 
     def prepare_adopt(self, text: str) -> AdoptProposal:
