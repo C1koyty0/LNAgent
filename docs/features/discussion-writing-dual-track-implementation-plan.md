@@ -598,19 +598,19 @@
 
 ## Phase D7：CLI 兼容策略与文档收口
 
-**目标**：明确 CLI 是否继续维持单轨 MVP 行为，或逐步接入双轨；并把仓库文档统一收口。
+**目标**：明确当前双轨能力以 Web/API 为主、CLI 暂维持旧行为；并把仓库文档统一收口。
 
 **做什么**：
 
-- 决定 CLI 第一阶段是否保持原语义不变
+- 明确 CLI 当前阶段保持旧单轨语义，双轨入口以 Web/API 为主
 - 更新 README / memory-architecture / feature 索引
 - 记录兼容别名、限制与迁移说明
 
 **预期效果**：
 
-- 新旧入口边界清楚
+- Web/API 与 CLI 的当前边界清楚
 - 后续 session 不需要从聊天记录恢复设计意图
-- 仓库文档对“当前 MVP”和“下一阶段双轨”区分明确
+- 仓库文档对“当前 Web 双轨能力”和“CLI 旧入口”区分明确
 
 **建议文件**：
 
@@ -621,21 +621,21 @@
 
 **任务清单**：
 
-- [ ] D7.1 决定 CLI 是否接入双轨或暂保持旧行为
-- [ ] D7.2 更新仓库 README 与特性说明
-- [ ] D7.3 记录 API / CLI 兼容策略
-- [ ] D7.4 记录已知限制与后续方向
+- [x] D7.1 明确 CLI 暂不接入双轨，保持旧行为
+- [x] D7.2 更新仓库 README 与特性说明
+- [x] D7.3 记录 API / CLI 兼容策略
+- [x] D7.4 记录已知限制与后续方向
 
 **验收**：
 
-- [ ] 文档能解释 discussion / writing 双轨的边界
-- [ ] API 与 CLI 的当前语义清晰可查
-- [ ] 新 session 可仅依靠文档继续推进
+- [x] 文档能解释 discussion / writing 双轨的边界
+- [x] API 与 CLI 的当前语义清晰可查
+- [x] 新 session 可仅依靠文档继续推进
 
-**验收命令（建议）**：
+**验收命令（已执行 / 建议复用）**：
 
 - 手工审阅文档一致性
-- `python -m unittest`
+- `python -m unittest tests.test_web_app tests.test_discussion_brief tests.test_memory_store -v`
 
 ---
 

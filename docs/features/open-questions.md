@@ -23,7 +23,7 @@
 | **L1** | 🟡 | **adopt / scene 各需几次 LLM 调用？** | adopt：续写 1 次 + Hot 抽取 1 次；scene：Cold 提案 1 次 + reconcile 1 次？实现阶段按成本与延迟优化，不阻塞架构。 |
 | **T8** | 🟢 | **上下文 token 预算如何分配？** | Phase 5：按**字符**分块上限 + 总预算裁剪；`/config` 可配。见 [memory-mvp-plan Phase 5](./memory-mvp-plan.md#phase-5中篇可用方向-a)。 |
 | **L6** | 🟢 | **Hot / Cold 抽取用的结构化输出 schema** | Hot：JSON patch（Phase 2）。Cold：`synopsis.json` 见 [memory-mvp-plan Phase 3](./memory-mvp-plan.md#phase-3场景切换与-cold-archive记忆闭环)。 |
-| **L7** | 🟢 | **System Prompt 中「写作任务」与「讨论任务」是否区分** | Phase 5：仅在 system 中加边界说明（讨论输出非正文，勿直接 adopt）；不新增讨论模式命令。后续双轨演进见 [discussion-writing-dual-track-design.md](./discussion-writing-dual-track-design.md)。 |
+| **L7** | 🟢 | **System Prompt 中「写作任务」与「讨论任务」是否区分** | 已决议并已在 Web/API 落地：discussion / writing 使用独立 prompt 与独立路由；CLI 保持旧单轨，不新增双轨命令面。见 [discussion-writing-dual-track-design.md](./discussion-writing-dual-track-design.md)。 |
 
 ---
 
@@ -70,6 +70,7 @@
 | **R1** | 🟡 | **向量 RAG 接入时机** | 已预留 `MemoryRetriever`；何时对历史 scene 做 embedding 检索？ |
 | **R2** | 🟡 | **LangGraph / LangMem 接入边界** | 哪些模块可被替换而不动 `NovelSession` 对外 API？ |
 | **R3** | 🔴 | **多书 / 章节级结构** | 当前一次一本、场景级；长篇分卷时 schema 如何演进？ |
+| **R4** | 🟡 | **CLI 何时正式退场 / 仅保留维护模式** | 当前方向已明确为 Web 优先；CLI 暂保持可用但不再扩展双轨交互，后续需决定何时将其降为兼容入口或维护模式。 |
 
 ---
 
@@ -104,7 +105,7 @@
 | T8 计量与裁剪 | 字符预算；各块独立上限 + 总预算；超限时 CLI 提示，不 silent 丢块 |
 | T8 配置 | `/config` 修改 `config.json`，立即生效 |
 | C6 规则 | `adopt_stack ≥ 2` 或连续 M 轮无 `/a`（默认 3）；仅建议 |
-| L7 边界 | system 中说明讨论输出非正文；无讨论模式命令 |
+| L7 边界 | CLI 保持单轨；Web/API 已显式拆为 discussion / writing 双轨；discussion 不进正文与 Canon |
 | P5 写盘 | `checkpoint_only`：`send()` 不写 `session.json` |
 
 ---
@@ -130,3 +131,4 @@
 | 2026-05-27 | Phase 5.5：P5 标 🟢，checkpoint_only session 写盘策略 |
 | 2026-05-29 | Phase 5/6 决议同步：L4、T8、L7、C6、P3 标 🟢；P4/P6 标 🟡；新增 §8–§9 |
 | 2026-05-29 | S2–S4 链出 canon-schema-evolution-plan；S3 优先、迁移 A+B |
+| 2026-06-11 | D7 文档收口：补充 Web/API 双轨已落地、CLI 暂保持旧单轨入口，新增 CLI 退场时机问题 R4 |

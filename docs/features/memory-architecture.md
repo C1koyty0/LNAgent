@@ -196,7 +196,7 @@ projects/<novel_id>/
 - LLM：在 Canon + 当前场景约束下扩展、丰富、具体化。
 - 输出：候选正文 / 对话回复；**仅经 `/adopt` 采纳**的内容写入当前场景正文区。
 - **历史候选**：作者让 LLM 重写时，旧候选**直接丢弃**；仅最后一轮输出可被 `/adopt`。
-- **纯讨论轮次（已确认）**：当前 MVP 中作者可提问、讨论设定合理性等，**不单独设模式**；是否写入正文仍仅由显式 `/a` 决定。若后续进入 discussion / writing 双轨方案，则以新设计文档为准（见 [discussion-writing-dual-track-design.md](./discussion-writing-dual-track-design.md)）。
+- **纯讨论轮次（CLI 旧入口）**：当前 CLI 入口仍保持单轨 MVP 语义；作者可提问、讨论设定合理性等，但 **CLI 不单独设 discussion / writing 模式**，是否写入正文仍仅由显式 `/a` 决定。Web/API 已实现显式双轨，详见 [discussion-writing-dual-track-design.md](./discussion-writing-dual-track-design.md)。
 
 短期记忆中的「指令」不作为独立层维护，而是**当前场景对话历史的一部分**。
 
@@ -380,7 +380,7 @@ projects/<novel_id>/
 | E4 | `/undo` 可撤对象 | 栈顶 pop；`accepted_canon=false` 也可撤；可连续 `/u`；仅当前场景 |
 | F1 | `/fix` 输入 | 多行 + `EOF`（同 `/a`）；纠错意图不可为空 |
 | F2 | `/fix` patch | 与 adopt **同 JSON patch schema + merge**；不改正文、不写 `adopt_stack` |
-| L5 | 纯讨论轮次 | **允许**；不单独设模式，是否 adopt 仍靠显式 `/a` |
+| L5 | 纯讨论轮次 | **允许**；CLI 不单独设模式，Web/API 已显式拆为 discussion / writing 双轨；是否 adopt 仍靠显式 `/a` |
 | P2 | 断点恢复 | **不恢复**未 adopt 候选；退出即丢弃 |
 | S5 | 全书梗概 rollup | **每次 Cold accept 后** LLM 自动更新 `synopsis.global` |
 | S6 | 场景元数据 | `/sc` Cold 提案时 LLM 抽取 `location`、`time`；作者仅改 `summary`，元数据以提案为准 |
@@ -399,6 +399,12 @@ projects/<novel_id>/
 | L1 | adopt / scene 各几次 LLM 调用？ | 🟡 实现时优化 |
 | T8 | 上下文 token 预算 | 🟡 依模型窗口 |
 | P3 | MVP 是否合并导出 manuscript？ | 🔴 待讨论 |
+
+### 8.3 当前入口边界补充（2026-06）
+
+- **Web/API**：已实现 discussion / writing 双轨；discussion 不进入 candidate / canon / manuscript，writing 继续沿用 adopt 主路径。
+- **CLI**：暂维持既有单轨入口，不追加双轨命令面；后续产品方向预计转向 Web 为主，因此 CLI 双轨不作为当前阶段目标。
+- **兼容策略**：Web 层保留旧 `/send`、`/send/stream` 作为 `writing/send`、`writing/send/stream` 的兼容别名，便于平滑迁移已有调用方与测试。
 
 ---
 
