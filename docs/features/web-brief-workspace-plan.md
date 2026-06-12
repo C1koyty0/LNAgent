@@ -109,47 +109,65 @@
 
 ---
 
-## Phase B1：Brief 可视化面板骨架
+## Phase B1：Brief 只读面板收口
 
-**目标**：在 Web 项目页中把 brief 从纯文本/隐式状态提升为可见面板，先看得见，再谈编辑体验。
+**目标**：把已经接入项目页的 Discussion Brief 面板收口为稳定、清晰、可回归验证的只读工作区，为 B2 的人工编辑入口打基础。
 
 **做什么**：
 
-- 在项目页侧栏或主区域增加 brief 面板容器
-- 显示 `todo_items / constraints / open_questions` 三组信息
-- 增加同步状态与空态提示
-- 保持现有讨论 / 写作切换行为不变
+- 对齐计划与现状：明确 brief 面板、brief 数据拉取与基础只读渲染已存在
+- 收口项目页中的 brief 展示层次、状态表达与按钮归属
+- 补足空态 / 脏态 / 已同步态的页面语义
+- 补前端与 Web API 回归测试，确保 discussion / writing 切换行为不受影响
 
 **预期效果**：
 
-- 作者能直接看到当前 brief 的内容
-- brief 与 discussion / writing 的关系更清楚
-- 后续编辑入口可以复用同一面板
+- 作者能稳定看见当前 brief 的三组内容与同步状态
+- brief 在页面上更像“工作区”而不是隐式摘要
+- B2 可以在同一面板上继续增加编辑能力，而不需要重做结构
+
+**当前已确认的 B1 约束**：
+
+- B1 不引入 brief 编辑能力，编辑入口留到 B2
+- B1 不修改 `DiscussionBrief` 的字符串数组 schema
+- B1 不改变现有 discussion / writing 模式切换与路由语义
+- brief 面板继续以当前项目页为主，不新增独立页面
+- 若调整按钮位置，只做同页内归属优化，不新增新的后端动作
 
 **建议文件**：
 
+- Modify: `docs/features/web-brief-workspace-plan.md`
 - Modify: `lnagent/web/app.py`
-- Modify: `lnagent/web/templates/*.html`
-- Modify: `lnagent/web/static/*.css`
-- Modify: `lnagent/web/static/*.js`
-- Test: `tests/test_web_api.py`
+- Modify: `lnagent/web/static/project.js`
+- Modify: `lnagent/web/static/render.js`
+- Modify: `lnagent/web/static/style.css`
+- Test: `tests/test_web_app.py`
+
+**实现清单**：
+
+1. 回写计划文档，把 B1 从“面板骨架”重定义为“只读面板收口”，明确哪些部分已经具备、哪些部分仍待完成。
+2. 复核项目页中 brief 面板与 discussion 操作的布局关系，决定是否把 `刷新讨论摘要` 等动作移动到更靠近 brief 面板的位置。
+3. 收紧 brief 渲染语义：区分空 brief、`dirty=true` 待刷新、`dirty=false` 已同步、raw chat 已清空但 brief 保留等状态。
+4. 保持 discussion / writing 双轨行为不变，只改展示层，不扩展新的编辑或提交流程。
+5. 为页面 HTML、`discussion/get` / `discussion/refresh` 响应和前端静态资源补回归测试，确认 brief 面板持续存在且渲染关键字段。
 
 **任务清单**：
 
-- [ ] B1.1 增加 brief 数据到项目页响应
-- [ ] B1.2 渲染 brief 三个区块的只读视图
-- [ ] B1.3 增加空状态与加载状态
-- [ ] B1.4 为 brief 面板补前端回归测试
+- [x] B1.1 回写计划文档并记录现状
+- [ ] B1.2 收口 brief 面板的布局与操作归属
+- [ ] B1.3 收紧 brief 状态与空态表达
+- [ ] B1.4 为 brief 面板补 Web 回归测试
 
 **验收**：
 
-- [ ] 项目页可见 brief 内容
-- [ ] brief 面板不影响现有 discussion / writing 功能
-- [ ] 页面刷新后 brief 仍可正确显示
+- [ ] 项目页持续可见 brief 内容、同步状态和空态提示
+- [ ] brief 面板收口后不影响现有 discussion / writing 功能
+- [ ] 页面刷新、discussion refresh、discussion clear 后 brief 仍按预期显示
+- [ ] 测试文件与验收命令指向实际存在的 `tests/test_web_app.py`
 
 **验收命令（建议）**：
 
-- `python -m unittest tests.test_web_api -v`
+- `python -m unittest tests.test_web_app -v`
 
 ---
 
