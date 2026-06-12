@@ -74,6 +74,10 @@
 - `todo_items` 使用 `list[str]`
 - `constraints` 使用 `list[str]`
 - `open_questions` 使用 `list[str]`
+- 旧数据若为单字符串，归一化为单元素数组（如 `"foo" -> ["foo"]`）
+- 三个列表字段在序列化 / API / prompt 语义上始终存在，可为空数组，不省略字段
+- 列表项统一做 `strip()`，丢弃空串，保留顺序，当前阶段不做去重
+- `updated_at` 表示当前 brief 最近一次成功更新的时间；只要 brief 内容或状态发生变化，无论来源都要更新时间
 - 不新增对象级元数据字段
 - 不改变现有 discussion / writing 路由语义
 
@@ -94,9 +98,9 @@
 
 **验收**：
 
-- [ ] brief v2 schema 只有字符串数组，不含对象数组
-- [ ] 旧数据能平滑读入
-- [ ] prompt 输出与 store 序列化一致
+- [x] brief v2 schema 只有字符串数组，不含对象数组
+- [x] 旧数据能平滑读入
+- [x] prompt 输出与 store 序列化一致
 
 **验收命令（建议）**：
 

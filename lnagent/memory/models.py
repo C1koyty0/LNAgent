@@ -4,10 +4,24 @@ from __future__ import annotations
 
 import re
 from dataclasses import InitVar, dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 _SCENE_ID_PATTERN = re.compile(r"^scene_(\d+)$")
 _TAIL_CHAR_LIMIT = 500
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_discussion_brief_items(values: list[str]) -> list[str]:
+    result: list[str] = []
+    for item in values:
+        text = str(item).strip()
+        if text:
+            result.append(text)
+    return result
 
 
 @dataclass
@@ -44,28 +58,40 @@ class DiscussionBrief:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DiscussionBrief:
-        raw_todo_items = data.get("todo_items", [])
-        raw_constraints = data.get("constraints", [])
-        raw_open_questions = data.get("open_questions", [])
+        def _str_list(key: str) -> list[str]:
+            raw = data.get(key, [])
+            if isinstance(raw, list):
+                values = raw
+            elif raw is None:
+                values = []
+            else:
+                values = [raw]
+            result: list[str] = []
+            for item in values:
+                if item is None:
+                    continue
+                text = str(item).strip()
+                if text:
+                    result.append(text)
+            return result
+
         return cls(
             scene_id=str(data.get("scene_id", DEFAULT_SCENE_ID)),
-            todo_items=(
-                [str(item) for item in raw_todo_items]
-                if isinstance(raw_todo_items, list)
-                else []
-            ),
-            constraints=(
-                [str(item) for item in raw_constraints]
-                if isinstance(raw_constraints, list)
-                else []
-            ),
-            open_questions=(
-                [str(item) for item in raw_open_questions]
-                if isinstance(raw_open_questions, list)
-                else []
-            ),
+            todo_items=_str_list("todo_items"),
+            constraints=_str_list("constraints"),
+            open_questions=_str_list("open_questions"),
             dirty=bool(data.get("dirty", False)),
             updated_at=str(data.get("updated_at", "")),
+        )
+
+    def normalized(self, *, updated_at: str | None = None) -> DiscussionBrief:
+        return DiscussionBrief(
+            scene_id=self.scene_id,
+            todo_items=_normalize_discussion_brief_items(self.todo_items),
+            constraints=_normalize_discussion_brief_items(self.constraints),
+            open_questions=_normalize_discussion_brief_items(self.open_questions),
+            dirty=self.dirty,
+            updated_at=_now_iso() if updated_at is None else updated_at,
         )
 
     @classmethod

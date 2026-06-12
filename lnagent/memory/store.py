@@ -196,7 +196,8 @@ class JsonMemoryStore:
 
     def save_discussion_brief(self, scene_id: str, brief: DiscussionBrief) -> None:
         path = self._discussion_brief_path(scene_id)
-        self._write_json(path, brief.to_dict())
+        normalized = brief.normalized()
+        self._write_json(path, normalized.to_dict())
 
     def clear_discussion_brief(self, scene_id: str) -> None:
         path = self._discussion_brief_path(scene_id)

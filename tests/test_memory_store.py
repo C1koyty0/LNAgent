@@ -1292,7 +1292,7 @@ class NovelSessionTest(unittest.TestCase):
 
     # ── D3: discussion dirty + auto-refresh bridge ──
 
-    def test_send_discussion_marks_brief_dirty(self) -> None:
+    def test_send_discussion_marks_brief_dirty_and_refreshes_timestamp(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
@@ -1307,6 +1307,7 @@ class NovelSessionTest(unittest.TestCase):
 
             brief = store.load_discussion_brief("scene_001")
             self.assertTrue(brief.dirty)
+            self.assertTrue(brief.updated_at)
 
     def test_send_writing_refreshes_dirty_brief_before_building_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

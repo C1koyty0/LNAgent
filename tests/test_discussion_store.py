@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -55,20 +56,78 @@ class DiscussionStoreTest(unittest.TestCase):
 
         self.assertEqual(brief, DiscussionBrief.empty("scene_001"))
 
-    def test_discussion_brief_round_trip(self) -> None:
+    def test_load_discussion_brief_normalizes_legacy_scalar_and_list_fields(self) -> None:
+        path = self.store.project_dir / "discussion" / "scene_001" / "brief.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "scene_id": "scene_001",
+                    "todo_items": "  先写主角的不适应感  ",
+                    "constraints": [
+                        "",
+                        "  不要提前揭示徽章来源 ",
+                        None,
+                        "不要提前揭示徽章来源",
+                    ],
+                    "open_questions": "  导师是否本场出场未定  ",
+                    "dirty": True,
+                    "updated_at": "2026-06-09T20:55:00+08:00",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        loaded = self.store.load_discussion_brief("scene_001")
+
+        self.assertEqual(loaded.scene_id, "scene_001")
+        self.assertEqual(loaded.todo_items, ["先写主角的不适应感"])
+        self.assertEqual(
+            loaded.constraints,
+            ["不要提前揭示徽章来源", "不要提前揭示徽章来源"],
+        )
+        self.assertEqual(loaded.open_questions, ["导师是否本场出场未定"])
+        self.assertTrue(loaded.dirty)
+        self.assertEqual(loaded.updated_at, "2026-06-09T20:55:00+08:00")
+
+    def test_save_discussion_brief_normalizes_lists_and_refreshes_updated_at(self) -> None:
         brief = DiscussionBrief(
             scene_id="scene_001",
-            todo_items=["先写主角的不适应感"],
-            constraints=["不要提前揭示徽章来源"],
-            open_questions=["导师是否本场出场未定"],
+            todo_items=["  先写主角的不适应感  ", "", "先写主角的不适应感"],
+            constraints=["", "  不要提前揭示徽章来源 ", "不要提前揭示徽章来源"],
+            open_questions=["  ", "  导师是否本场出场未定  "],
             dirty=True,
             updated_at="2026-06-09T20:55:00+08:00",
         )
 
         self.store.save_discussion_brief("scene_001", brief)
         loaded = self.store.load_discussion_brief("scene_001")
+        raw = json.loads(
+            (
+                self.store.project_dir / "discussion" / "scene_001" / "brief.json"
+            ).read_text(encoding="utf-8")
+        )
 
-        self.assertEqual(loaded, brief)
+        self.assertEqual(loaded.todo_items, ["先写主角的不适应感", "先写主角的不适应感"])
+        self.assertEqual(
+            loaded.constraints,
+            ["不要提前揭示徽章来源", "不要提前揭示徽章来源"],
+        )
+        self.assertEqual(loaded.open_questions, ["导师是否本场出场未定"])
+        self.assertTrue(loaded.dirty)
+        self.assertTrue(loaded.updated_at)
+        self.assertNotEqual(loaded.updated_at, "2026-06-09T20:55:00+08:00")
+        self.assertEqual(raw["todo_items"], ["先写主角的不适应感", "先写主角的不适应感"])
+        self.assertEqual(
+            raw["constraints"],
+            ["不要提前揭示徽章来源", "不要提前揭示徽章来源"],
+        )
+        self.assertEqual(raw["open_questions"], ["导师是否本场出场未定"])
+        self.assertTrue(raw["updated_at"])
+        self.assertNotEqual(raw["updated_at"], "2026-06-09T20:55:00+08:00")
 
     def test_clear_discussion_messages_does_not_affect_brief(self) -> None:
         self.store.append_discussion_message(
@@ -86,8 +145,15 @@ class DiscussionStoreTest(unittest.TestCase):
 
         self.store.clear_discussion_messages("scene_001")
 
+        loaded_brief = self.store.load_discussion_brief("scene_001")
+
         self.assertEqual(self.store.load_discussion_messages("scene_001"), [])
-        self.assertEqual(self.store.load_discussion_brief("scene_001"), brief)
+        self.assertEqual(loaded_brief.scene_id, brief.scene_id)
+        self.assertEqual(loaded_brief.todo_items, brief.todo_items)
+        self.assertEqual(loaded_brief.constraints, brief.constraints)
+        self.assertEqual(loaded_brief.open_questions, brief.open_questions)
+        self.assertEqual(loaded_brief.dirty, brief.dirty)
+        self.assertTrue(loaded_brief.updated_at)
 
     def test_clear_discussion_brief_does_not_affect_messages(self) -> None:
         self.store.append_discussion_message(
