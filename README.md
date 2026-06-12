@@ -202,6 +202,7 @@ print(reply)
 - [x] Web 前端 MVP 完善（undo/export/config、结构化侧栏、loading）
 - [x] Web 流式 send（SSE token 推送）
 - [x] 讨论 / 写作双轨 Web/API 与项目页 toggle（D0–D6）
+- [x] Web brief 工作空间计划（B0 起）
 - [ ] 可配置的文风与叙事模板
 - [ ] 向量 RAG 检索（Phase 7+，MVP 不做）
 
@@ -213,6 +214,7 @@ print(reply)
 - [Web/API 第一版实施计划](docs/features/web-api-implementation-plan.md) — W0–W7 已实现，含阶段验收与限制记录
 - [讨论 / 写作双轨设计](docs/features/discussion-writing-dual-track-design.md) — 双 prompt / 双存储 / 双 API 设计边界
 - [讨论 / 写作双轨实施计划](docs/features/discussion-writing-dual-track-implementation-plan.md) — D0–D6 已实现，D7 待开始
+- [Web Brief 工作空间实施计划](docs/features/web-brief-workspace-plan.md) — B0 起：先定字符串数组 schema，再推进面板与人工编辑
 
 ## 许可证
 
