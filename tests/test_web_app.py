@@ -161,6 +161,14 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("discussion-brief", project_html)
             self.assertIn("discussion-messages", project_html)
             self.assertIn("discussion-weak-hint", project_html)
+            self.assertIn("brief-panel", project_html)
+            self.assertIn("brief-actions", project_html)
+            self.assertIn("brief-panel-desc", project_html)
+            brief_panel_start = project_html.index("brief-panel")
+            refresh_in_panel = project_html.index("data-action='discussion-refresh'", brief_panel_start)
+            clear_in_panel = project_html.index("data-action='discussion-clear'", brief_panel_start)
+            self.assertLess(refresh_in_panel, project_html.index("</aside>"))
+            self.assertLess(clear_in_panel, project_html.index("</aside>"))
             self.assertNotIn("id='config-summary' class='kv-list'", project_html)
 
     def test_static_assets_are_served(self) -> None:
@@ -172,6 +180,8 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertEqual(css.status_code, 200)
             self.assertIn("text/css", css.content_type)
             self.assertIn(b"--bg", css.body)
+            self.assertIn(b"brief-panel", css.body)
+            self.assertIn(b"brief-status-note", css.body)
 
             js = client.get("/static/project.js")
             self.assertEqual(js.status_code, 200)
@@ -179,6 +189,7 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn(b"/discussion/send", js.body)
             self.assertIn(b"/discussion/get", js.body)
             self.assertIn(b"/discussion/refresh", js.body)
+            self.assertIn(b"messageCount", js.body)
             self.assertIn(b"/writing/send/stream", js.body)
             self.assertIn(b"mode-toggle", js.body)
             self.assertIn(b"setMode(", js.body)
@@ -187,6 +198,10 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertEqual(render_js.status_code, 200)
             self.assertIn(b"renderMetaSummary", render_js.body)
             self.assertIn(b"renderDiscussionBrief", render_js.body)
+            self.assertIn(b"deriveDiscussionBriefStatus", render_js.body)
+            self.assertIn(b"formatBriefTimestamp", render_js.body)
+            self.assertIn(b"brief-status-note", render_js.body)
+            self.assertIn("原始讨论已清空".encode("utf-8"), render_js.body)
             self.assertIn(b"renderDiscussionMessages", render_js.body)
 
             missing = client.get("/static/not-found.js")
@@ -384,6 +399,9 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertEqual(clear_payload["messages"], [])
             self.assertEqual(clear_payload["brief"]["todo_items"], ["确定学院纪律"])
             self.assertFalse(clear_payload["brief"]["dirty"])
+            self.assertIn("updated_at", clear_payload["brief"])
+            self.assertEqual(clear_payload["brief"]["constraints"], ["禁止公开私斗"])
+            self.assertEqual(clear_payload["brief"]["open_questions"], ["谁来执行纪律"])
 
     def test_writing_route_and_legacy_send_alias_share_behavior(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

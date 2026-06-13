@@ -374,7 +374,7 @@ function renderConfigSummary(configPayload) {
   return renderKeyValueRows(keys.map((key) => [key, flat[key]]));
 }
 
-function renderDiscussionBrief(brief) {
+function renderDiscussionBrief(brief, options = {}) {
   if (!brief || typeof brief !== "object") {
     return "<p class='hint'>暂无 discussion brief。</p>";
   }
@@ -383,16 +383,34 @@ function renderDiscussionBrief(brief) {
   const openQuestions = Array.isArray(brief.open_questions) ? brief.open_questions : [];
   const updatedAt = String(brief.updated_at || "").trim();
   const dirty = Boolean(brief.dirty);
-  const empty = !todoItems.length && !constraints.length && !openQuestions.length;
-  if (empty && !updatedAt) {
+  const messageCount =
+    typeof options.messageCount === "number" && Number.isFinite(options.messageCount)
+      ? Math.max(0, options.messageCount)
+      : null;
+  const hasContent = todoItems.length || constraints.length || openQuestions.length;
+  const empty = !hasContent;
+
+  if (empty && !updatedAt && messageCount === 0) {
+    return "<p class='hint'>暂无 discussion brief，切换到讨论模式发送消息后，可在此查看提炼结果。</p>";
+  }
+  if (empty && !updatedAt && messageCount === null) {
     return "<p class='hint'>暂无 discussion brief，先进行几轮讨论吧。</p>";
   }
 
+  const status = deriveDiscussionBriefStatus({
+    dirty,
+    empty,
+    hasContent,
+    updatedAt,
+    messageCount,
+  });
+
   let html = `
     <div class='discussion-brief-status'>
-      <span class='badge ${dirty ? "discussion-brief-dirty" : "discussion-brief-clean"}'>${dirty ? "待刷新" : "已同步"}</span>
-      ${updatedAt ? `<span class='hint'>更新于 ${escapeHtml(updatedAt)}</span>` : ""}
+      <span class='badge ${status.badgeClass}'>${escapeHtml(status.badgeLabel)}</span>
+      ${updatedAt ? `<span class='hint brief-updated-at'>更新于 ${escapeHtml(formatBriefTimestamp(updatedAt))}</span>` : ""}
     </div>
+    <p class='hint brief-status-note'>${escapeHtml(status.note)}</p>
   `;
   if (todoItems.length) {
     html += renderBulletSection("待办", todoItems);
@@ -404,9 +422,64 @@ function renderDiscussionBrief(brief) {
     html += renderBulletSection("待解问题", openQuestions);
   }
   if (empty) {
-    html += "<p class='hint'>当前 brief 为空，但会在后续讨论中逐步沉淀。</p>";
+    html += "<p class='hint'>当前 brief 尚无条目，继续讨论或刷新摘要后会逐步沉淀。</p>";
   }
   return html;
+}
+
+function deriveDiscussionBriefStatus({ dirty, empty, hasContent, updatedAt, messageCount }) {
+  if (dirty) {
+    if (messageCount > 0) {
+      return {
+        badgeClass: "discussion-brief-dirty",
+        badgeLabel: "待刷新",
+        note: `有 ${messageCount} 条原始讨论待提炼，请点击「刷新讨论摘要」同步到 brief。`,
+      };
+    }
+    return {
+      badgeClass: "discussion-brief-dirty",
+      badgeLabel: "待刷新",
+      note: "brief 已标记为待刷新，但当前无原始讨论消息。",
+    };
+  }
+  if (messageCount === 0 && hasContent) {
+    return {
+      badgeClass: "discussion-brief-clean",
+      badgeLabel: "已同步",
+      note: "原始讨论已清空，当前 brief 仍供写作参考。",
+    };
+  }
+  if (messageCount > 0) {
+    return {
+      badgeClass: "discussion-brief-clean",
+      badgeLabel: "已同步",
+      note: `原始讨论 ${messageCount} 条，已与 brief 同步。`,
+    };
+  }
+  if (updatedAt || hasContent) {
+    return {
+      badgeClass: "discussion-brief-clean",
+      badgeLabel: "已同步",
+      note: "brief 已与最近讨论同步。",
+    };
+  }
+  return {
+    badgeClass: "discussion-brief-muted",
+    badgeLabel: "未开始",
+    note: "切换到讨论模式开始梳理当前场景。",
+  };
+}
+
+function formatBriefTimestamp(value) {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+  try {
+    return new Date(parsed).toLocaleString("zh-CN", { hour12: false });
+  } catch (_error) {
+    return value;
+  }
 }
 
 function renderDiscussionMessages(messages) {

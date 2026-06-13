@@ -48,7 +48,7 @@
 
 **阶段完成标准**：
 
-- [ ] 范围与非目标与现有双轨设计保持一致
+- [x] 范围与非目标与现有双轨设计保持一致
 
 ---
 
@@ -154,20 +154,21 @@
 **任务清单**：
 
 - [x] B1.1 回写计划文档并记录现状
-- [ ] B1.2 收口 brief 面板的布局与操作归属
-- [ ] B1.3 收紧 brief 状态与空态表达
-- [ ] B1.4 为 brief 面板补 Web 回归测试
+- [x] B1.2 收口 brief 面板的布局与操作归属
+- [x] B1.3 收紧 brief 状态与空态表达
+- [x] B1.4 为 brief 面板补 Web 回归测试
 
 **验收**：
 
-- [ ] 项目页持续可见 brief 内容、同步状态和空态提示
-- [ ] brief 面板收口后不影响现有 discussion / writing 功能
-- [ ] 页面刷新、discussion refresh、discussion clear 后 brief 仍按预期显示
-- [ ] 测试文件与验收命令指向实际存在的 `tests/test_web_app.py`
+- [x] 项目页持续可见 brief 内容、同步状态和空态提示
+- [x] brief 面板收口后不影响现有 discussion / writing 功能
+- [x] 页面刷新、discussion refresh、discussion clear 后 brief 仍按预期显示
+- [x] 测试文件与验收命令指向实际存在的 `tests/test_web_app.py`
 
-**验收命令（建议）**：
+**验收命令（已执行）**：
 
 - `python -m unittest tests.test_web_app -v`
+- `python -m unittest`（全量 159 项通过，2026-06-13）
 
 ---
 
@@ -258,4 +259,5 @@
 
 | 日期 | 说明 |
 |------|------|
+| 2026-06-13 | B1 完成：brief 面板布局收口、状态表达与 Web 回归测试 |
 | 2026-06-12 | 新增 Web brief 工作空间计划：先定字符串数组 schema，再做可视化面板与人工编辑 |

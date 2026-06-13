@@ -562,7 +562,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderDiscussionState(payload) {
     if (discussionBriefEl) {
-      discussionBriefEl.innerHTML = renderDiscussionBrief(payload?.brief || {});
+      discussionBriefEl.innerHTML = renderDiscussionBrief(payload?.brief || {}, {
+        messageCount: Array.isArray(payload?.messages) ? payload.messages.length : 0,
+      });
     }
     renderMessagesInContainer(
       discussionMessagesEl,

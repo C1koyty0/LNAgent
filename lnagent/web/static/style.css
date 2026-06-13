@@ -115,6 +115,23 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.brief-panel-desc {
+  margin: 0 0 0.75rem;
+}
+
+.brief-actions {
+  margin-bottom: 0.75rem;
+}
+
+.brief-status-note {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.brief-updated-at {
+  font-size: 0.85rem;
 }
 
 .discussion-brief-dirty {
@@ -123,6 +140,10 @@ a {
 
 .discussion-brief-clean {
   color: var(--accent);
+}
+
+.discussion-brief-muted {
+  color: var(--muted);
 }
 
 .panel.is-weakened {
