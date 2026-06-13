@@ -142,7 +142,7 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("LNAgent Web", home_html)
             self.assertIn("demo", home_html)
             self.assertIn("create-project-form", home_html)
-            self.assertIn("/static/style.css", home_html)
+            self.assertIn("/static/style.css?v=", home_html)
 
             project_page = client.get("/projects/demo")
             self.assertEqual(project_page.status_code, 200)
@@ -151,7 +151,7 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("data-project-id='demo'", project_html)
             self.assertIn("<body data-project-id='demo'", project_html)
             self.assertIn("data-action='send'", project_html)
-            self.assertIn("/static/project.js", project_html)
+            self.assertIn("/static/project.js?v=", project_html)
             self.assertIn("data-action='undo'", project_html)
             self.assertIn("config-form", project_html)
             self.assertIn("writing-progress", project_html)
@@ -164,6 +164,9 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("brief-panel", project_html)
             self.assertIn("brief-actions", project_html)
             self.assertIn("brief-panel-desc", project_html)
+            self.assertIn("brief-edit-form", project_html)
+            self.assertIn("data-action='discussion-brief-save'", project_html)
+            self.assertIn("data-action='discussion-edit-toggle'", project_html)
             brief_panel_start = project_html.index("brief-panel")
             refresh_in_panel = project_html.index("data-action='discussion-refresh'", brief_panel_start)
             clear_in_panel = project_html.index("data-action='discussion-clear'", brief_panel_start)
@@ -179,9 +182,11 @@ class WebAppIntegrationTest(unittest.TestCase):
             css = client.get("/static/style.css")
             self.assertEqual(css.status_code, 200)
             self.assertIn("text/css", css.content_type)
+            self.assertEqual(css.headers.get("Cache-Control"), "no-cache, must-revalidate")
             self.assertIn(b"--bg", css.body)
             self.assertIn(b"brief-panel", css.body)
             self.assertIn(b"brief-status-note", css.body)
+            self.assertIn(b"brief-edit-form", css.body)
 
             js = client.get("/static/project.js")
             self.assertEqual(js.status_code, 200)
@@ -189,6 +194,8 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn(b"/discussion/send", js.body)
             self.assertIn(b"/discussion/get", js.body)
             self.assertIn(b"/discussion/refresh", js.body)
+            self.assertIn(b"/discussion/brief/save", js.body)
+            self.assertIn(b"saveDiscussionBrief", js.body)
             self.assertIn(b"messageCount", js.body)
             self.assertIn(b"/writing/send/stream", js.body)
             self.assertIn(b"mode-toggle", js.body)
@@ -202,6 +209,8 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn(b"formatBriefTimestamp", render_js.body)
             self.assertIn(b"brief-status-note", render_js.body)
             self.assertIn("原始讨论已清空".encode("utf-8"), render_js.body)
+            self.assertIn(b"briefItemsToText", render_js.body)
+            self.assertIn(b"textToBriefItems", render_js.body)
             self.assertIn(b"renderDiscussionMessages", render_js.body)
 
             missing = client.get("/static/not-found.js")
@@ -402,6 +411,39 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("updated_at", clear_payload["brief"])
             self.assertEqual(clear_payload["brief"]["constraints"], ["禁止公开私斗"])
             self.assertEqual(clear_payload["brief"]["open_questions"], ["谁来执行纪律"])
+
+    def test_discussion_brief_save_via_api(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(Path(tmp))
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            save_response = client.post(
+                "/api/projects/demo/discussion/brief/save",
+                json={
+                    "todo_items": ["  写交付场景  ", ""],
+                    "constraints": ["保持轻松基调", "  "],
+                    "open_questions": "莫丽恩是否点破",
+                },
+            )
+            self.assertEqual(save_response.status_code, 200)
+            save_payload = save_response.get_json()
+            self.assertEqual(save_payload["scene_id"], "scene_001")
+            self.assertEqual(save_payload["brief"]["todo_items"], ["写交付场景"])
+            self.assertEqual(save_payload["brief"]["constraints"], ["保持轻松基调"])
+            self.assertEqual(save_payload["brief"]["open_questions"], ["莫丽恩是否点破"])
+            self.assertFalse(save_payload["brief"]["dirty"])
+            self.assertTrue(save_payload["brief"]["updated_at"])
+
+            get_payload = client.get("/api/projects/demo/discussion/get").get_json()
+            self.assertEqual(get_payload["brief"]["todo_items"], ["写交付场景"])
+            self.assertFalse(get_payload["brief"]["dirty"])
+
+            writing_response = client.post(
+                "/api/projects/demo/writing/send",
+                json={"text": "按 brief 写一段"},
+            )
+            self.assertEqual(writing_response.status_code, 200)
 
     def test_writing_route_and_legacy_send_alias_share_behavior(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

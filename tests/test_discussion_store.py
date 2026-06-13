@@ -129,6 +129,20 @@ class DiscussionStoreTest(unittest.TestCase):
         self.assertTrue(raw["updated_at"])
         self.assertNotEqual(raw["updated_at"], "2026-06-09T20:55:00+08:00")
 
+    def test_from_edit_payload_normalizes_and_clears_dirty(self) -> None:
+        brief = DiscussionBrief.from_edit_payload(
+            "scene_001",
+            todo_items=["  写交付场景  ", ""],
+            constraints="保持轻松基调",
+            open_questions=[],
+        )
+        self.assertEqual(brief.scene_id, "scene_001")
+        self.assertEqual(brief.todo_items, ["写交付场景"])
+        self.assertEqual(brief.constraints, ["保持轻松基调"])
+        self.assertEqual(brief.open_questions, [])
+        self.assertFalse(brief.dirty)
+        self.assertTrue(brief.updated_at)
+
     def test_clear_discussion_messages_does_not_affect_brief(self) -> None:
         self.store.append_discussion_message(
             "scene_001", ChatMessage(role="user", content="保留 brief")

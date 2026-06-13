@@ -246,6 +246,25 @@ class AppService:
         handle.store.clear_discussion_messages(scene_id)
         return self._build_discussion_payload(handle)
 
+    def save_discussion_brief(
+        self,
+        project_id: str,
+        *,
+        todo_items: Any,
+        constraints: Any,
+        open_questions: Any,
+    ) -> dict:
+        handle = self.open_project(project_id)
+        scene_id = handle.session.scene_id
+        brief = DiscussionBrief.from_edit_payload(
+            scene_id,
+            todo_items=todo_items,
+            constraints=constraints,
+            open_questions=open_questions,
+        )
+        handle.store.save_discussion_brief(scene_id, brief)
+        return self._build_discussion_payload(handle)
+
     def stream_message(self, project_id: str, text: str) -> Iterator[dict[str, Any]]:
         yield from self.stream_writing_message(project_id, text)
 

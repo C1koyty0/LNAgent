@@ -98,6 +98,25 @@ class DiscussionBrief:
     def empty(cls, scene_id: str) -> DiscussionBrief:
         return cls(scene_id=scene_id)
 
+    @classmethod
+    def from_edit_payload(
+        cls,
+        scene_id: str,
+        *,
+        todo_items: Any,
+        constraints: Any,
+        open_questions: Any,
+    ) -> DiscussionBrief:
+        return cls.from_dict(
+            {
+                "scene_id": scene_id,
+                "todo_items": todo_items,
+                "constraints": constraints,
+                "open_questions": open_questions,
+                "dirty": False,
+            }
+        ).normalized()
+
 
 @dataclass
 class ScopedWorldRules:

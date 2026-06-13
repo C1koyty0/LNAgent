@@ -12,6 +12,19 @@ from typing import Any
 from lnagent.app_service import AppService
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+_DEV_CACHE_CONTROL = "no-cache, must-revalidate"
+
+
+def _static_asset_version(relative_path: str) -> int:
+    target = STATIC_DIR / relative_path
+    if not target.is_file():
+        return 0
+    return int(target.stat().st_mtime_ns)
+
+
+def _static_url(relative_path: str) -> str:
+    version = _static_asset_version(relative_path)
+    return f"/static/{relative_path}?v={version}"
 
 
 class SimpleResponse:
@@ -21,10 +34,12 @@ class SimpleResponse:
         *,
         status: int = 200,
         content_type: str = "text/html; charset=utf-8",
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.status_code = status
         self.body = body
         self.content_type = content_type
+        self.headers = headers or {}
 
     def get_data(self, as_text: bool = False) -> str | bytes:
         if as_text:
@@ -78,7 +93,8 @@ class SimpleTestClient:
             "CONTENT_LENGTH": content_length,
             "CONTENT_TYPE": content_type,
         }
-        return _materialize_response(self._app.handle_wsgi(environ))
+        response = _materialize_response(self._app.handle_wsgi(environ))
+        return response
 
 
 def _materialize_response(response: SimpleResponse | StreamResponse) -> SimpleResponse:
@@ -196,6 +212,15 @@ class SimpleWebApp:
             return self._json_response(self._service.refresh_discussion_brief(project_id))
         if method == "POST" and suffix == "/discussion/clear":
             return self._json_response(self._service.clear_discussion_messages(project_id))
+        if method == "POST" and suffix == "/discussion/brief/save":
+            return self._json_response(
+                self._service.save_discussion_brief(
+                    project_id,
+                    todo_items=payload.get("todo_items", []),
+                    constraints=payload.get("constraints", []),
+                    open_questions=payload.get("open_questions", []),
+                )
+            )
         if method == "POST" and suffix == "/adopt/prepare":
             return self._json_response(self._service.prepare_adopt(project_id, payload.get("text")))
         if method == "POST" and suffix == "/adopt/commit":
@@ -246,7 +271,11 @@ class SimpleWebApp:
         if not target.is_file():
             return self._json_response({"error": "not found"}, status=404)
         content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-        return SimpleResponse(target.read_bytes(), content_type=content_type)
+        return SimpleResponse(
+            target.read_bytes(),
+            content_type=content_type,
+            headers={"Cache-Control": _DEV_CACHE_CONTROL},
+        )
 
     @staticmethod
     def _json_response(payload: Any, *, status: int = 200) -> SimpleResponse:
@@ -258,7 +287,11 @@ class SimpleWebApp:
 
     @staticmethod
     def _html_response(html: str, *, status: int = 200) -> SimpleResponse:
-        return SimpleResponse(html.encode("utf-8"), status=status)
+        return SimpleResponse(
+            html.encode("utf-8"),
+            status=status,
+            headers={"Cache-Control": _DEV_CACHE_CONTROL},
+        )
 
     def _sse_response(self, events: Any) -> StreamResponse:
         def chunks():
@@ -305,7 +338,10 @@ def _read_json_body(environ: dict[str, Any]) -> dict:
 
 
 def _page_shell(*, title: str, body: str, scripts: list[str], body_attrs: str = "") -> str:
-    script_tags = "".join(f'<script src="{escape(path)}" defer></script>' for path in scripts)
+    script_tags = "".join(
+        f'<script src="{escape(_static_url(path.removeprefix("/static/")))}" defer></script>'
+        for path in scripts
+    )
     return (
         "<!DOCTYPE html>"
         "<html lang='zh-CN'>"
@@ -313,7 +349,7 @@ def _page_shell(*, title: str, body: str, scripts: list[str], body_attrs: str = 
         "<meta charset='utf-8'>"
         f"<title>{escape(title)}</title>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<link rel='stylesheet' href='/static/style.css'>"
+        f"<link rel='stylesheet' href='{escape(_static_url("style.css"))}'>"
         "</head>"
         f"<body{body_attrs}>{body}{script_tags}</body>"
         "</html>"
@@ -472,7 +508,20 @@ def _render_project(project_id: str) -> str:
         "<div class='button-row brief-actions'>"
         "<button type='button' data-action='discussion-refresh'>刷新讨论摘要</button>"
         "<button type='button' data-action='discussion-clear'>清空原始消息</button>"
+        "<button type='button' data-action='discussion-edit-toggle'>编辑 brief</button>"
         "</div>"
+        "<form id='brief-edit-form' class='brief-edit-form hidden'>"
+        "<label for='brief-edit-todo'>待办（每行一条）</label>"
+        "<textarea id='brief-edit-todo' rows='4' placeholder='每行一条待办…'></textarea>"
+        "<label for='brief-edit-constraints'>当前约束（每行一条）</label>"
+        "<textarea id='brief-edit-constraints' rows='4' placeholder='每行一条约束…'></textarea>"
+        "<label for='brief-edit-open-questions'>待解问题（每行一条）</label>"
+        "<textarea id='brief-edit-open-questions' rows='3' placeholder='每行一条问题…'></textarea>"
+        "<div class='button-row'>"
+        "<button type='button' class='primary' data-action='discussion-brief-save'>保存 brief</button>"
+        "<button type='button' data-action='discussion-edit-cancel'>取消</button>"
+        "</div>"
+        "</form>"
         "<div id='discussion-brief' class='summary-block'><p class='hint'>加载中…</p></div>"
         "</section>"
         "<section class='panel'>"

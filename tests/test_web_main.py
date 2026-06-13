@@ -12,6 +12,11 @@ class WebMainArgsTest(unittest.TestCase):
         self.assertEqual(args.host, "0.0.0.0")
         self.assertEqual(args.port, 9001)
 
+    def test_parse_args_accepts_reload_flag(self) -> None:
+        args = web_main.parse_args(["--reload"])
+
+        self.assertTrue(args.reload)
+
     def test_parse_args_uses_environment_defaults(self) -> None:
         with patch.dict(
             os.environ,

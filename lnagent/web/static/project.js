@@ -28,6 +28,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const discussionMessagesEl = document.getElementById("discussion-messages");
   const discussionBriefEl = document.getElementById("discussion-brief");
   const discussionWeakHintEl = document.getElementById("discussion-weak-hint");
+  const briefEditForm = document.getElementById("brief-edit-form");
+  const briefEditTodo = document.getElementById("brief-edit-todo");
+  const briefEditConstraints = document.getElementById("brief-edit-constraints");
+  const briefEditOpenQuestions = document.getElementById("brief-edit-open-questions");
   const adoptPanel = document.getElementById("adopt-panel");
   const fixPanel = document.getElementById("fix-panel");
 
@@ -146,6 +150,12 @@ document.addEventListener("DOMContentLoaded", () => {
             await refreshDiscussionBrief();
           } else if (action === "discussion-clear") {
             await clearDiscussionMessages();
+          } else if (action === "discussion-edit-toggle") {
+            toggleBriefEditForm(true);
+          } else if (action === "discussion-edit-cancel") {
+            toggleBriefEditForm(false);
+          } else if (action === "discussion-brief-save") {
+            await saveDiscussionBrief();
           }
         } catch (error) {
           setStatus(statusEl, error.message, "error");
@@ -496,6 +506,45 @@ document.addEventListener("DOMContentLoaded", () => {
     );
     renderDiscussionState(discussionState);
     setStatus(statusEl, "讨论原始消息已清空。", "info");
+  }
+
+  function populateBriefEditForm(brief) {
+    if (!briefEditTodo || !briefEditConstraints || !briefEditOpenQuestions) {
+      return;
+    }
+    briefEditTodo.value = briefItemsToText(brief?.todo_items);
+    briefEditConstraints.value = briefItemsToText(brief?.constraints);
+    briefEditOpenQuestions.value = briefItemsToText(brief?.open_questions);
+  }
+
+  function toggleBriefEditForm(show) {
+    if (!briefEditForm) {
+      return;
+    }
+    if (show) {
+      populateBriefEditForm(discussionState?.brief || {});
+      briefEditForm.classList.remove("hidden");
+      return;
+    }
+    briefEditForm.classList.add("hidden");
+  }
+
+  async function saveDiscussionBrief() {
+    if (!briefEditTodo || !briefEditConstraints || !briefEditOpenQuestions) {
+      throw new Error("brief 编辑表单未就绪。");
+    }
+    discussionState = await apiRequest(
+      "POST",
+      `/api/projects/${encodeURIComponent(projectId)}/discussion/brief/save`,
+      {
+        todo_items: textToBriefItems(briefEditTodo.value),
+        constraints: textToBriefItems(briefEditConstraints.value),
+        open_questions: textToBriefItems(briefEditOpenQuestions.value),
+      },
+    );
+    renderDiscussionState(discussionState);
+    toggleBriefEditForm(false);
+    setStatus(statusEl, "Discussion Brief 已保存，写作将读取最新内容。", "info");
   }
 
   async function refreshAll() {

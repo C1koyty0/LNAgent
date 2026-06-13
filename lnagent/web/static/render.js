@@ -482,6 +482,20 @@ function formatBriefTimestamp(value) {
   }
 }
 
+function briefItemsToText(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return "";
+  }
+  return items.map((item) => String(item)).join("\n");
+}
+
+function textToBriefItems(text) {
+  return String(text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function renderDiscussionMessages(messages) {
   if (!Array.isArray(messages) || !messages.length) {
     return '<p class="hint">暂无讨论消息，切到讨论模式后发送第一条消息开始梳理。</p>';

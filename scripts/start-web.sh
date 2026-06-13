@@ -17,6 +17,7 @@ PORT="${LNAGENT_WEB_PORT:-8000}"
 PROJECTS_DIR="${LNAGENT_PROJECTS_DIR:-$PROJECT_ROOT/projects}"
 MODEL_NAME="${MODEL:-gpt-4o-mini}"
 PYTHON_BIN="${PYTHON_BIN:-python}"
+RELOAD=0
 
 print_help() {
     cat <<EOF
@@ -29,6 +30,7 @@ LNAgent Web 一键启动脚本（Bash）
   --host HOST           监听地址，默认读取 LNAGENT_WEB_HOST 或 127.0.0.1
   --port PORT           监听端口，默认读取 LNAGENT_WEB_PORT 或 8000
   --projects-dir PATH   项目目录，默认读取 LNAGENT_PROJECTS_DIR 或 <repo>/projects
+  --reload              开发模式：文件变更时自动重启 Web 进程
   --help                显示帮助
 
 环境变量:
@@ -58,6 +60,10 @@ while [[ $# -gt 0 ]]; do
         --projects-dir)
             PROJECTS_DIR="$2"
             shift 2
+            ;;
+        --reload)
+            RELOAD=1
+            shift
             ;;
         --help|-h)
             print_help
@@ -101,6 +107,14 @@ echo "监听地址: http://$HOST:$PORT"
 echo "小说项目目录: $PROJECTS_DIR"
 echo "前端页面: http://$HOST:$PORT/"
 echo "后端 API: http://$HOST:$PORT/api/projects"
+if [[ "$RELOAD" == "1" ]]; then
+    echo "开发模式: 已启用 --reload（文件变更自动重启）"
+fi
 echo ""
 
-exec "$PYTHON_BIN" web_main.py --host "$HOST" --port "$PORT"
+WEB_ARGS=(--host "$HOST" --port "$PORT")
+if [[ "$RELOAD" == "1" ]]; then
+    WEB_ARGS+=(--reload)
+fi
+
+exec "$PYTHON_BIN" web_main.py "${WEB_ARGS[@]}"

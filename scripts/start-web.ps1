@@ -18,7 +18,8 @@ param(
     [string]$ListenHost = $(if ($env:LNAGENT_WEB_HOST) { $env:LNAGENT_WEB_HOST } else { "127.0.0.1" }),
     [int]$Port = $(if ($env:LNAGENT_WEB_PORT) { [int]$env:LNAGENT_WEB_PORT } else { 8000 }),
     [string]$ProjectsDir = $(if ($env:LNAGENT_PROJECTS_DIR) { $env:LNAGENT_PROJECTS_DIR } else { "" }),
-    [string]$PythonBin = $(if ($env:PYTHON_BIN) { $env:PYTHON_BIN } else { "python" })
+    [string]$PythonBin = $(if ($env:PYTHON_BIN) { $env:PYTHON_BIN } else { "python" }),
+    [switch]$Reload
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,7 +64,15 @@ Write-Host "监听地址: http://$ListenHost`:$Port"
 Write-Host "小说项目目录: $ProjectsDir"
 Write-Host "前端页面: http://$ListenHost`:$Port/"
 Write-Host "后端 API: http://$ListenHost`:$Port/api/projects"
+if ($Reload) {
+    Write-Host "开发模式: 已启用 --reload（文件变更自动重启）" -ForegroundColor Yellow
+}
 Write-Host ""
 
-& $PythonBin web_main.py --host $ListenHost --port $Port
+$webArgs = @("web_main.py", "--host", $ListenHost, "--port", "$Port")
+if ($Reload) {
+    $webArgs += "--reload"
+}
+
+& $PythonBin @webArgs
 exit $LASTEXITCODE
