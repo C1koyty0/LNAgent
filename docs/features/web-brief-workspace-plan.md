@@ -178,10 +178,10 @@
 
 **做什么**：
 
-- 增加 brief 编辑提交接口
-- 允许对三组字符串列表逐项增删改
-- 提交后同步刷新 store 与 prompt 输入
-- 保持编辑权限和确认语义清晰
+- 增加 `discussion/brief/save` 编辑提交接口
+- 允许对三组字符串列表逐项增删改（前端以“每行一条”文本区编辑）
+- 提交后同步刷新 store 与 prompt 输入，后续 writing 会读取最新 brief
+- 保持编辑权限和确认语义清晰：只改当前 scene 的 brief，不触碰 raw discussion / canon / manuscript
 
 **预期效果**：
 
@@ -189,31 +189,50 @@
 - Web 端可以把 brief 当成轻量工作区而不是只读摘要
 - writing prompt 读取到的内容始终是最新 brief
 
-**建议文件**：
+**当前已确认的 B2 约束**：
 
+- 编辑 payload 仍使用 `todo_items / constraints / open_questions` 三个字符串列表字段
+- 前端编辑体验采用轻量 textarea，每行一条；不引入富文本或复杂对象编辑器
+- 保存 brief 后置 `dirty=false`，表示人工编辑结果已可直接作为同步后的 brief 使用
+- 保存 brief 会走 store 的统一归一化与 `updated_at` 刷新路径
+- B2 不修改 discussion raw chat，不写入 canon，不写入 manuscript
+
+**建议文件（已落地）**：
+
+- Modify: `lnagent/memory/models.py`
 - Modify: `lnagent/app_service.py`
 - Modify: `lnagent/web/app.py`
-- Modify: `lnagent/web/schemas.py`
-- Modify: `lnagent/memory/store.py`
-- Test: `tests/test_web_app_service.py`
+- Modify: `lnagent/web/static/project.js`
+- Modify: `lnagent/web/static/style.css`
+- Test: `tests/test_discussion_store.py`
+- Test: `tests/test_web_app.py`
+
+**实现清单**：
+
+1. 在 `DiscussionBrief` 模型上提供编辑 payload 入口，复用 B0 的归一化规则并清除 `dirty`。
+2. 在 `AppService` 增加 brief 保存方法，把 payload 转成当前 scene 的 `DiscussionBrief` 并写入 store。
+3. 在 Web API 增加 `POST /api/projects/<id>/discussion/brief/save`，返回最新 discussion state。
+4. 在项目页 brief 面板增加编辑表单，三组字段均以“每行一条” textarea 展示。
+5. 前端保存后重新渲染 brief 面板并提示“写作将读取最新内容”。
+6. 补充 store/API/Web 静态资源回归测试，确认保存后 `discussion/get` 和 writing 路径可读取最新 brief。
 
 **任务清单**：
 
-- [ ] B2.1 设计 brief 编辑 payload
-- [ ] B2.2 实现 brief 保存与校验
-- [ ] B2.3 接入项目页编辑动作
-- [ ] B2.4 补 brief 编辑回归测试
+- [x] B2.1 设计 brief 编辑 payload
+- [x] B2.2 实现 brief 保存与校验
+- [x] B2.3 接入项目页编辑动作
+- [x] B2.4 补 brief 编辑回归测试
 
 **验收**：
 
-- [ ] brief 可通过 Web 端保存
-- [ ] 保存后 prompt 与页面同步更新
-- [ ] 不破坏现有 discussion / writing 路由
+- [x] brief 可通过 Web 端保存
+- [x] 保存后 prompt 与页面同步更新
+- [x] 不破坏现有 discussion / writing 路由
+- [x] 测试文件与验收命令指向实际存在的 `tests/test_web_app.py`
 
-**验收命令（建议）**：
+**验收命令（已执行）**：
 
-- `python -m unittest tests.test_web_app_service -v`
-- `python -m unittest tests.test_web_api -v`
+- `python -m unittest tests.test_web_app -v`（18 项通过，2026-06-13）
 
 ---
 
