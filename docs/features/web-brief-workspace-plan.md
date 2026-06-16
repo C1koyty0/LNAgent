@@ -236,41 +236,67 @@
 
 ---
 
-## Phase B3：后续升级预留
+## Phase B3：为 richer brief 预留升级出口（docs only）
 
-**目标**：给 brief v2 到对象数组的升级留出清晰出口，但不提前启动。
+**目标**：给 brief v2 从字符串数组升级到对象数组预留清晰出口，但不提前启动 schema 升级、迁移代码或复杂 UI。
 
 **做什么**：
 
-- 记录对象数组可扩展点
-- 明确升级后需要补的 UI 交互和兼容迁移
-- 评估是否需要单独的 diff / history 视图
+- 记录对象数组升级的前置条件与触发信号
+- 明确未来 richer brief 可能需要补齐的 item 级交互、兼容迁移与验证范围
+- 记录 diff / history 是否值得引入，以及它应解决的具体问题
 
 **预期效果**：
 
-- 当前实现不被未来复杂化拖慢
-- 需要 richer brief 时有明确迁移路径
-- 讨论 / 写作双轨仍保持稳定
+- 当前字符串数组实现继续保持简单、稳定、低维护成本
+- 未来若需要 item 级状态、优先级、来源或注释时，有明确迁移路径
+- discussion / writing 双轨在升级前后都保持“写作只读 brief、不直读 raw chat”的核心边界
+
+**当前已确认的 B3 边界**：
+
+- B3 是 **docs only**，不修改持久化 schema，不新增 API，不变更现有前端交互
+- `todo_items / constraints / open_questions` 在当前版本继续保持 `list[str]`
+- 未来若升级为对象数组，应以“字段增强”为目标，而不是改变 brief 的三栏语义分工
+- 在明确真实需求前，不预埋对象数组兼容层、不引入半成品数据迁移
+- diff / history 只有在需要区分“自动 refresh 改动”与“人工编辑改动”时才值得进入实现范围
 
 **建议文件**：
 
 - Update docs: `docs/features/discussion-writing-dual-track-design.md`
 - Update docs: `docs/features/open-questions.md`
+- Update docs: `docs/features/web-brief-workspace-plan.md`
+
+**对象数组升级的候选方向（记录，不实施）**：
+
+- `todo_items[]` 未来可扩展为 `{id, text, status, priority, note}`
+- `constraints[]` 未来可扩展为 `{id, text, hard, source}`
+- `open_questions[]` 未来可扩展为 `{id, text, decision_hint, resolved}`
+- 若进入对象数组阶段，应优先保证：
+  1. 旧 `list[str]` 数据有单向、可回放的迁移规则
+  2. writing prompt 仍能稳定降级为纯文本条目注入
+  3. Web 端先补 item 级编辑模型，再谈排序、过滤、历史或 merge
+
+**后续 UX 方向（记录，不实施）**：
+
+- 若 brief 条目开始需要状态或来源，不再继续堆叠“大 textarea 每行一条”的编辑模型
+- 可考虑分阶段演进为：只读列表 → 行内编辑 → item 卡片 → diff/history 抽屉
+- 若未来加入自动 refresh 与人工编辑并存的冲突处理，需要先定义“覆盖 / 保留 / 手工合并”的默认策略
 
 **任务清单**：
 
-- [ ] B3.1 记录对象数组升级前置条件
-- [ ] B3.2 记录 brief 编辑 UX 的后续方向
-- [ ] B3.3 复核开放问题并更新决议
+- [x] B3.1 记录对象数组升级前置条件
+- [x] B3.2 记录 brief 编辑 UX 的后续方向
+- [x] B3.3 复核开放问题并更新决议
 
 **验收**：
 
-- [ ] 文档中明确“先字符串数组，后对象数组”
-- [ ] 升级入口不影响当前交付
+- [x] 文档中明确“先字符串数组，后对象数组”
+- [x] 升级入口不影响当前交付
+- [x] B3 被记录为 docs-only 收口，而不是新一轮功能开发
 
-**验收命令（建议）**：
+**验收命令**：
 
-- 无
+- 无（文档收口）
 
 ---
 
