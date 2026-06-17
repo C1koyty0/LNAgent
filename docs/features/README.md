@@ -14,3 +14,4 @@
 | [discussion-writing-dual-track-design.md](./discussion-writing-dual-track-design.md) | **讨论 / 写作双轨设计**（双 prompt、双存储、双 API） | 设计已落地，D0–D7 已实现 |
 | [discussion-writing-dual-track-implementation-plan.md](./discussion-writing-dual-track-implementation-plan.md) | **讨论 / 写作双轨实施计划**（D0–D7，可跨 session 追踪） | D0–D7 已实现 |
 | [web-brief-workspace-plan.md](./web-brief-workspace-plan.md) | **Web Brief 工作空间**（B0 schema、B1 只读面板、B2 人工编辑） | B0–B2 已实现 |
+| [style-template-implementation-plan.md](./style-template-implementation-plan.md) | **文风与叙事模板**（S0 meta 编辑、S1 模板存储、S2 预设选择） | 计划中 |

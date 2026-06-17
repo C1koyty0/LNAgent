@@ -205,7 +205,7 @@ print(reply)
 - [x] Web Brief 工作空间 schema 定型（B0）
 - [x] Web Brief 只读面板收口（B1）
 - [x] Web Brief 人工编辑（B2）
-- [ ] 可配置的文风与叙事模板
+- [ ] [可配置的文风与叙事模板](docs/features/style-template-implementation-plan.md)（S0–S2 计划已定稿）
 - [ ] 向量 RAG 检索（Phase 7+，MVP 不做）
 
 ## 设计文档
