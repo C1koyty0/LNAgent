@@ -223,21 +223,25 @@
 
 **任务清单**：
 
-- [ ] S1.1 实现模板 store 层
-- [ ] S1.2 实现模板 Web API
-- [ ] S1.3 补模板 store 单元测试
+- [x] S1.1 实现模板 store 层
+- [x] S1.2 实现模板 Web API
+- [x] S1.3 补模板 store 单元测试
 
 **验收**：
 
-- [ ] `GET /api/templates` 返回模板列表
-- [ ] `POST /api/templates` 保存模板并写盘为 JSON 文件
-- [ ] `DELETE /api/templates/<name>` 删除模板文件
-- [ ] 模板目录在 `_templates/` 下，不干扰项目索引
-- [ ] 同名保存覆盖旧文件
+- [x] `GET /api/templates` 返回模板列表
+- [x] `POST /api/templates` 保存模板并写盘为 JSON 文件
+- [x] `DELETE /api/templates/<name>` 删除模板文件
+- [x] 模板目录在 `_templates/` 下，不干扰项目索引
+- [x] 同名保存覆盖旧文件
 
-**验收命令（建议）**：
+**验收命令（已执行）**：
 
-- `python -m unittest tests.test_template_store -v`
+- `python -m unittest tests.test_template_store tests.test_web_app.WebAppIntegrationTest.test_template_api_save_list_and_delete_round_trip tests.test_web_app.WebAppIntegrationTest.test_list_projects_and_ignore_invalid_entries tests.test_web_app.WebAppIntegrationTest.test_create_project_via_api -v`
+- `python -m unittest tests.test_web_app -v`（21 项通过，2026-06-17）
+- `python -m py_compile lnagent/app_service.py lnagent/template_store.py`
+- `node --check lnagent/web/static/project.js`
+- `node --check lnagent/web/static/render.js`
 
 ---
 

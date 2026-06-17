@@ -79,6 +79,9 @@ class SimpleTestClient:
     def put(self, path: str, json: dict | None = None) -> SimpleResponse:
         return self._request("PUT", path, json)
 
+    def delete(self, path: str) -> SimpleResponse:
+        return self._request("DELETE", path, None)
+
     def _request(self, method: str, path: str, payload: dict | None) -> SimpleResponse:
         body = b""
         content_length = "0"
@@ -140,6 +143,17 @@ class SimpleWebApp:
         if method == "POST" and path == "/api/projects":
             result = self._service.create_project(payload.get("project_id", ""), payload.get("meta", {}))
             return self._json_response(result, status=201)
+        if method == "GET" and path == "/api/templates":
+            return self._json_response({"templates": self._service.list_templates()})
+        if method == "POST" and path == "/api/templates":
+            result = self._service.save_template(
+                str(payload.get("project_id", "")),
+                str(payload.get("name", "")),
+            )
+            return self._json_response(result, status=201)
+        if method == "DELETE" and path.startswith("/api/templates/"):
+            name = path.split("/", 3)[3] if path.count("/") >= 3 else ""
+            return self._json_response(self._service.delete_template(name))
 
         project_id, suffix = _match_project_api(path)
         if project_id is None:

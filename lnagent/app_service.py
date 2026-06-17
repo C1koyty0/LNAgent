@@ -29,6 +29,7 @@ from lnagent.project import create_project_from_meta_dict
 from lnagent.project_index import ProjectSummary, list_projects
 from lnagent.session import AdoptProposal, NovelSession, ReconcileItem
 from lnagent.session_registry import SessionHandle, SessionRegistry
+from lnagent.template_store import JsonTemplateStore
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,20 @@ class AppService:
 
     def get_meta(self, project_id: str) -> dict:
         return self.open_project(project_id).meta.to_dict()
+
+    def list_templates(self) -> list[dict[str, Any]]:
+        return JsonTemplateStore(self._projects_dir).list_templates()
+
+    def save_template(self, project_id: str, name: str) -> dict[str, Any]:
+        handle = self.open_project(project_id)
+        return JsonTemplateStore(self._projects_dir).save_template(name, handle.meta.to_dict())
+
+    def delete_template(self, name: str) -> dict[str, Any]:
+        deleted = JsonTemplateStore(self._projects_dir).delete_template(name)
+        return {
+            "deleted": deleted,
+            "name": str(name).strip(),
+        }
 
     def update_meta(self, project_id: str, meta_data: dict) -> dict:
         handle = self.open_project(project_id)

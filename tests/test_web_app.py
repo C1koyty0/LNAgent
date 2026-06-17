@@ -636,7 +636,7 @@ class WebAppIntegrationTest(unittest.TestCase):
             app = _build_app(Path(tmp), create_demo=False)
             client = app.test_client()
 
-            response = client.post(
+            create_response = client.post(
                 "/api/projects",
                 json={
                     "project_id": "new-book",
@@ -647,13 +647,64 @@ class WebAppIntegrationTest(unittest.TestCase):
                     },
                 },
             )
-            self.assertEqual(response.status_code, 201)
-            payload = response.get_json()
+            self.assertEqual(create_response.status_code, 201)
+            payload = create_response.get_json()
             self.assertEqual(payload["project_id"], "new-book")
+            self.assertEqual(payload["meta"]["title"], "新书")
+            self.assertTrue((Path(tmp) / "projects" / "new-book" / "meta.json").is_file())
 
             list_response = client.get("/api/projects")
+            self.assertEqual(list_response.status_code, 200)
             list_payload = list_response.get_json()
             self.assertEqual([item["project_id"] for item in list_payload["projects"]], ["new-book"])
+
+    def test_template_api_save_list_and_delete_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(Path(tmp))
+            client = app.test_client()
+
+            initial_response = client.get("/api/templates")
+            self.assertEqual(initial_response.status_code, 200)
+            self.assertEqual(initial_response.get_json()["templates"], [])
+
+            save_response = client.post(
+                "/api/templates",
+                json={"project_id": "demo", "name": "学院模板"},
+            )
+            self.assertEqual(save_response.status_code, 201)
+            save_payload = save_response.get_json()
+            self.assertEqual(save_payload["name"], "学院模板")
+            self.assertEqual(save_payload["title"], "测试书")
+            self.assertEqual(save_payload["style"], "轻小说")
+            self.assertEqual(save_payload["taboos"], [])
+            self.assertNotIn("world", save_payload)
+
+            template_path = Path(tmp) / "projects" / "_templates" / "学院模板.json"
+            self.assertTrue(template_path.is_file())
+            stored = json.loads(template_path.read_text(encoding="utf-8"))
+            self.assertEqual(stored["title"], "测试书")
+            self.assertEqual(stored["style"], "轻小说")
+            self.assertNotIn("world", stored)
+
+            list_response = client.get("/api/templates")
+            self.assertEqual(list_response.status_code, 200)
+            self.assertEqual(list_response.get_json()["templates"], [save_payload])
+
+            projects_response = client.get("/api/projects")
+            self.assertEqual(projects_response.status_code, 200)
+            self.assertEqual(
+                [item["project_id"] for item in projects_response.get_json()["projects"]],
+                ["demo"],
+            )
+
+            delete_response = client.delete("/api/templates/学院模板")
+            self.assertEqual(delete_response.status_code, 200)
+            self.assertEqual(delete_response.get_json(), {"deleted": True, "name": "学院模板"})
+            self.assertFalse(template_path.exists())
+
+            final_response = client.get("/api/templates")
+            self.assertEqual(final_response.status_code, 200)
+            self.assertEqual(final_response.get_json()["templates"], [])
 
 
 class AppServiceTest(unittest.TestCase):
