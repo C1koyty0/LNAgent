@@ -285,20 +285,23 @@
 
 **任务清单**：
 
-- [ ] S2.1 首页注入模板列表
-- [ ] S2.2 实现模板选择与表单预填
-- [ ] S2.3 补前端回归测试
+- [x] S2.1 首页注入模板列表
+- [x] S2.2 实现模板选择与表单预填
+- [x] S2.3 补前端回归测试
 
 **验收**：
 
-- [ ] 首页创建表单中有模板下拉选项
-- [ ] 选择模板后 meta 字段预填
-- [ ] 预填后可手动修改
-- [ ] 不选择模板时行为与现在一致
+- [x] 首页创建表单中有模板下拉选项
+- [x] 选择模板后 meta 字段预填
+- [x] 预填后可手动修改
+- [x] 不选择模板时行为与现在一致
 
 **验收命令（建议）**：
 
+- `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_home_page_and_project_page_render tests.test_web_app.WebAppIntegrationTest.test_static_assets_are_served tests.test_web_app.WebAppIntegrationTest.test_create_project_via_api -v`
 - `python -m unittest tests.test_web_app -v`
+- `python -m py_compile lnagent/app_service.py lnagent/template_store.py lnagent/project.py`
+- `node --check lnagent/web/static/home.js && node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js`
 
 ---
 

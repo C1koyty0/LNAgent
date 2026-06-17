@@ -205,7 +205,7 @@ print(reply)
 - [x] Web Brief 工作空间 schema 定型（B0）
 - [x] Web Brief 只读面板收口（B1）
 - [x] Web Brief 人工编辑（B2）
-- [~] [可配置的文风与叙事模板](docs/features/style-template-implementation-plan.md)（S0–S1 已实现；S2 待续）
+- [x] [可配置的文风与叙事模板](docs/features/style-template-implementation-plan.md)（S0–S2 已实现）
 - [ ] 向量 RAG 检索（Phase 7+，MVP 不做）
 
 ## 设计文档
@@ -217,7 +217,7 @@ print(reply)
 - [讨论 / 写作双轨设计](docs/features/discussion-writing-dual-track-design.md) — 双 prompt / 双存储 / 双 API 设计边界
 - [讨论 / 写作双轨实施计划](docs/features/discussion-writing-dual-track-implementation-plan.md) — D0–D7 已实现（CLI 暂保持单轨）
 - [Web Brief 工作空间实施计划](docs/features/web-brief-workspace-plan.md) — B0–B2 已实现；B3 保留给后续增强
-- [文风与叙事模板实施计划](docs/features/style-template-implementation-plan.md) — S0–S1 已实现；S2 待续
+- [文风与叙事模板实施计划](docs/features/style-template-implementation-plan.md) — S0–S2 已实现
 
 ## 许可证
 

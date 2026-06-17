@@ -142,6 +142,15 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("LNAgent Web", home_html)
             self.assertIn("demo", home_html)
             self.assertIn("create-project-form", home_html)
+            self.assertIn("project-template", home_html)
+            self.assertIn("不使用模板", home_html)
+            self.assertIn("project-pov", home_html)
+            self.assertIn("project-tense", home_html)
+            self.assertIn("project-genre", home_html)
+            self.assertIn("project-tone", home_html)
+            self.assertIn("project-target-audience", home_html)
+            self.assertIn("project-taboos", home_html)
+            self.assertIn("project-narrative-rules", home_html)
             self.assertIn("/static/style.css?v=", home_html)
 
             project_page = client.get("/projects/demo")
@@ -201,6 +210,18 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn(b"meta-form", css.body)
             self.assertIn(b"meta-form-note", css.body)
             self.assertIn(b"meta-readonly-box", css.body)
+
+            home_js = client.get("/static/home.js")
+            self.assertEqual(home_js.status_code, 200)
+            self.assertIn(b"/api/templates", home_js.body)
+            self.assertIn(b"project-template", home_js.body)
+            self.assertIn(b"project-pov", home_js.body)
+            self.assertIn(b"project-tense", home_js.body)
+            self.assertIn(b"project-genre", home_js.body)
+            self.assertIn(b"project-tone", home_js.body)
+            self.assertIn(b"project-target-audience", home_js.body)
+            self.assertIn(b"project-taboos", home_js.body)
+            self.assertIn(b"project-narrative-rules", home_js.body)
 
             js = client.get("/static/project.js")
             self.assertEqual(js.status_code, 200)
@@ -643,6 +664,13 @@ class WebAppIntegrationTest(unittest.TestCase):
                     "meta": {
                         "title": "新书",
                         "style": "轻小说",
+                        "pov": "第一人称",
+                        "tense": "过去时",
+                        "genre": "校园奇幻",
+                        "tone": "轻松治愈",
+                        "target_audience": "青少年",
+                        "taboos": ["避免说教"],
+                        "narrative_rules": ["单章聚焦一个冲突"],
                         "world_rules": ["魔法存在"],
                     },
                 },
@@ -651,6 +679,14 @@ class WebAppIntegrationTest(unittest.TestCase):
             payload = create_response.get_json()
             self.assertEqual(payload["project_id"], "new-book")
             self.assertEqual(payload["meta"]["title"], "新书")
+            self.assertEqual(payload["meta"]["style"], "轻小说")
+            self.assertEqual(payload["meta"]["pov"], "第一人称")
+            self.assertEqual(payload["meta"]["tense"], "过去时")
+            self.assertEqual(payload["meta"]["genre"], "校园奇幻")
+            self.assertEqual(payload["meta"]["tone"], "轻松治愈")
+            self.assertEqual(payload["meta"]["target_audience"], "青少年")
+            self.assertEqual(payload["meta"]["taboos"], ["避免说教"])
+            self.assertEqual(payload["meta"]["narrative_rules"], ["单章聚焦一个冲突"])
             self.assertTrue((Path(tmp) / "projects" / "new-book" / "meta.json").is_file())
 
             list_response = client.get("/api/projects")
