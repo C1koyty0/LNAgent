@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const sceneSuggestionText = document.getElementById("scene-suggestion-text");
   const exportResult = document.getElementById("export-result");
   const configForm = document.getElementById("config-form");
+  const metaForm = document.getElementById("meta-form");
   const modeToggle = document.getElementById("mode-toggle");
   const modeDescription = document.getElementById("mode-description");
   const writingMessagesEl = document.getElementById("messages");
@@ -34,6 +35,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const briefEditOpenQuestions = document.getElementById("brief-edit-open-questions");
   const adoptPanel = document.getElementById("adopt-panel");
   const fixPanel = document.getElementById("fix-panel");
+  const metaStyleInput = document.getElementById("meta-style-input");
+  const metaPovInput = document.getElementById("meta-pov-input");
+  const metaTenseInput = document.getElementById("meta-tense-input");
+  const metaGenreInput = document.getElementById("meta-genre-input");
+  const metaToneInput = document.getElementById("meta-tone-input");
+  const metaTargetAudienceInput = document.getElementById("meta-target-audience-input");
+  const metaTaboosInput = document.getElementById("meta-taboos-input");
+  const metaNarrativeRulesInput = document.getElementById("meta-narrative-rules-input");
 
   const actionButtons = Array.from(document.querySelectorAll("[data-action]"));
   const modeButtons = Array.from(modeToggle?.querySelectorAll("[data-mode]") || []);
@@ -89,6 +98,10 @@ document.addEventListener("DOMContentLoaded", () => {
         setStatus(statusEl, error.message, "error");
       });
     });
+  }
+
+  if (metaForm) {
+    metaForm.setAttribute("data-bound", "meta-form");
   }
 
   init().catch((error) => {
@@ -156,6 +169,8 @@ document.addEventListener("DOMContentLoaded", () => {
             toggleBriefEditForm(false);
           } else if (action === "discussion-brief-save") {
             await saveDiscussionBrief();
+          } else if (action === "meta-save") {
+            await saveMeta();
           }
         } catch (error) {
           setStatus(statusEl, error.message, "error");
@@ -547,6 +562,47 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus(statusEl, "Discussion Brief 已保存，写作将读取最新内容。", "info");
   }
 
+  function populateMetaForm(meta) {
+    if (!metaStyleInput) {
+      return;
+    }
+    metaStyleInput.value = meta?.style || "";
+    metaPovInput.value = meta?.pov || "";
+    metaTenseInput.value = meta?.tense || "";
+    metaGenreInput.value = meta?.genre || "";
+    metaToneInput.value = meta?.tone || "";
+    metaTargetAudienceInput.value = meta?.target_audience || "";
+    metaTaboosInput.value = metaListToText(meta?.taboos);
+    metaNarrativeRulesInput.value = metaListToText(meta?.narrative_rules);
+  }
+
+  async function saveMeta() {
+    if (!metaStyleInput) {
+      throw new Error("meta 编辑表单未就绪。");
+    }
+    const payload = await apiRequest(
+      "PUT",
+      `/api/projects/${encodeURIComponent(projectId)}/meta`,
+      {
+        style: metaStyleInput.value,
+        pov: metaPovInput.value,
+        tense: metaTenseInput.value,
+        genre: metaGenreInput.value,
+        tone: metaToneInput.value,
+        target_audience: metaTargetAudienceInput.value,
+        taboos: textToMetaList(metaTaboosInput.value),
+        narrative_rules: textToMetaList(metaNarrativeRulesInput.value),
+      },
+    );
+    metaState = payload;
+    document.getElementById("meta-title").textContent = payload.title || projectId;
+    document.getElementById("meta-style").textContent = payload.style || "";
+    document.getElementById("meta-summary").innerHTML = renderMetaSummary(metaState) + renderMetaEditForm(metaState);
+    document.getElementById("meta-json").textContent = formatJson(metaState);
+    populateMetaForm(metaState);
+    setStatus(statusEl, "Meta 已保存，后续写作将读取最新叙事配置。", "info");
+  }
+
   async function refreshAll() {
     const [session, meta, canon, synopsis, manuscripts, config, discussion] = await Promise.all([
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/session`),
@@ -577,7 +633,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderWritingSession(writingSession);
     renderDiscussionState(discussionState);
 
-    document.getElementById("meta-summary").innerHTML = renderMetaSummary(metaState);
+    document.getElementById("meta-summary").innerHTML = renderMetaSummary(metaState) + renderMetaEditForm(metaState);
     document.getElementById("canon-summary").innerHTML = renderCanonSummary(canonState);
     document.getElementById("synopsis-summary").innerHTML = renderSynopsisSummary(synopsisState);
     document.getElementById("manuscript-list").innerHTML = renderManuscriptList(
@@ -585,6 +641,7 @@ document.addEventListener("DOMContentLoaded", () => {
       session.scene_id,
     );
 
+    populateMetaForm(metaState);
     document.getElementById("meta-json").textContent = formatJson(metaState);
     document.getElementById("canon-json").textContent = formatJson(canonState);
     document.getElementById("synopsis-json").textContent = formatJson(synopsisState);

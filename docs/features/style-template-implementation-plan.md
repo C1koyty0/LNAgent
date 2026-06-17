@@ -149,20 +149,28 @@
 
 **任务清单**：
 
-- [ ] S0.1 实现 `AppService.update_meta()` 与 `PUT /api/projects/<id>/meta`
-- [ ] S0.2 实现 meta 编辑表单前端
-- [ ] S0.3 补 meta 编辑回归测试
+- [x] S0.1 实现 `AppService.update_meta()` 与 `PUT /api/projects/<id>/meta`
+- [x] S0.2 实现 meta 编辑表单前端
+- [x] S0.3 补 meta 编辑回归测试
 
 **验收**：
 
-- [ ] 通过 Web 编辑 meta 叙事字段后写盘成功
-- [ ] 下一次 LLM 调用 prompt 中可见更新后的 meta 值
-- [ ] `style` 不可为空，title / world 不可通过此接口修改
-- [ ] 不破坏现有 project 页 / discussion / writing 功能
+- [x] 通过 Web 编辑 meta 叙事字段后写盘成功
+- [x] 下一次 LLM 调用 prompt 中可见更新后的 meta 值
+- [x] `style` 不可为空，title / world 不可通过此接口修改
+- [x] 不破坏现有 project 页 / discussion / writing 功能
 
-**验收命令（建议）**：
+**验收命令（已执行）**：
 
-- `python -m unittest tests.test_web_app -v`
+- `python -m unittest tests.test_web_app -v`（20 项通过，2026-06-17）
+- `python -m py_compile lnagent/app_service.py lnagent/session.py lnagent/session_registry.py lnagent/web/app.py`
+- `node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js`
+
+**阶段结果**：
+
+- S0 已完成：项目页现支持直接编辑 `style / pov / tense / genre / tone / target_audience / taboos / narrative_rules`
+- 后端新增 `PUT /api/projects/<id>/meta`，并在写盘后同步刷新进程内 `SessionHandle` 缓存，保证下一次 writing / discussion prompt 立即读取最新 meta
+- 前端新增 meta 编辑表单、只读字段摘要与保存交互；`title` / `world` 保持只读
 
 ---
 

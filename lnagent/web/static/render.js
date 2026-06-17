@@ -117,6 +117,25 @@ function renderMetaSummary(meta) {
   return html || "<p class='hint'>暂无 Meta 信息。</p>";
 }
 
+function renderMetaEditForm(meta) {
+  return `
+    <div class='sub-block'>
+      <strong>当前只读字段</strong>
+      <div class='kv-rows'>
+        <div class='kv-row'>
+          <span class='kv-key'>书名</span>
+          <span class='kv-val'>${escapeHtml(meta?.title || "")}</span>
+        </div>
+        <div class='kv-row'>
+          <span class='kv-key'>世界规则</span>
+          <span class='kv-val'>${escapeHtml((meta?.world?.rules || []).join("；") || "（无）")}</span>
+        </div>
+      </div>
+      <p class='hint meta-form-note'>可编辑叙事字段并保存；书名与世界规则仍保持只读。</p>
+    </div>
+  `;
+}
+
 function renderCanonSummary(canon) {
   const characters = canon.characters || [];
   const plotThreads = canon.plot_threads || [];
@@ -487,6 +506,20 @@ function briefItemsToText(items) {
     return "";
   }
   return items.map((item) => String(item)).join("\n");
+}
+
+function metaListToText(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return "";
+  }
+  return items.map((item) => String(item)).join("\n");
+}
+
+function textToMetaList(text) {
+  return String(text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function textToBriefItems(text) {

@@ -167,6 +167,17 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("brief-edit-form", project_html)
             self.assertIn("data-action='discussion-brief-save'", project_html)
             self.assertIn("data-action='discussion-edit-toggle'", project_html)
+            self.assertIn("meta-form", project_html)
+            self.assertIn("meta-style-input", project_html)
+            self.assertIn("meta-pov-input", project_html)
+            self.assertIn("meta-tense-input", project_html)
+            self.assertIn("meta-genre-input", project_html)
+            self.assertIn("meta-tone-input", project_html)
+            self.assertIn("meta-target-audience-input", project_html)
+            self.assertIn("meta-taboos-input", project_html)
+            self.assertIn("meta-narrative-rules-input", project_html)
+            self.assertIn("data-action='meta-save'", project_html)
+            self.assertIn("meta-form-note", project_html)
             brief_panel_start = project_html.index("brief-panel")
             refresh_in_panel = project_html.index("data-action='discussion-refresh'", brief_panel_start)
             clear_in_panel = project_html.index("data-action='discussion-clear'", brief_panel_start)
@@ -187,6 +198,9 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn(b"brief-panel", css.body)
             self.assertIn(b"brief-status-note", css.body)
             self.assertIn(b"brief-edit-form", css.body)
+            self.assertIn(b"meta-form", css.body)
+            self.assertIn(b"meta-form-note", css.body)
+            self.assertIn(b"meta-readonly-box", css.body)
 
             js = client.get("/static/project.js")
             self.assertEqual(js.status_code, 200)
@@ -200,10 +214,18 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn(b"/writing/send/stream", js.body)
             self.assertIn(b"mode-toggle", js.body)
             self.assertIn(b"setMode(", js.body)
+            self.assertIn(b"saveMeta", js.body)
+            self.assertIn(b"/meta", js.body)
+            self.assertIn(b"meta-style-input", js.body)
+            self.assertIn(b"meta-form", js.body)
 
             render_js = client.get("/static/render.js")
             self.assertEqual(render_js.status_code, 200)
             self.assertIn(b"renderMetaSummary", render_js.body)
+            self.assertIn(b"renderMetaEditForm", render_js.body)
+            self.assertIn(b"meta-form-note", render_js.body)
+            self.assertIn(b"textToMetaList", render_js.body)
+            self.assertIn(b"metaListToText", render_js.body)
             self.assertIn(b"renderDiscussionBrief", render_js.body)
             self.assertIn(b"deriveDiscussionBriefStatus", render_js.body)
             self.assertIn(b"formatBriefTimestamp", render_js.body)
@@ -445,6 +467,96 @@ class WebAppIntegrationTest(unittest.TestCase):
             )
             self.assertEqual(writing_response.status_code, 200)
 
+    def test_update_meta_via_api_persists_refreshes_cache_and_affects_next_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            model = _RecordingReplyModel(["按新设定生成的正文"])
+            app = _build_app(
+                Path(tmp),
+                model_factory=lambda _project_id: model,
+            )
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            update_response = client._request(
+                "PUT",
+                "/api/projects/demo/meta",
+                {
+                    "title": "不应被修改的标题",
+                    "style": "严肃奇幻",
+                    "pov": "第一人称",
+                    "tense": "过去式",
+                    "genre": "学院奇幻",
+                    "tone": "克制",
+                    "target_audience": "青年读者",
+                    "taboos": ["避免说教", "  ", "避免跳脱"],
+                    "narrative_rules": ["聚焦主角感知", "单场景内避免大段回忆"],
+                    "world": {"rules": ["不应被修改的世界规则"]},
+                },
+            )
+            self.assertEqual(update_response.status_code, 200)
+            update_payload = update_response.get_json()
+            self.assertEqual(update_payload["style"], "严肃奇幻")
+            self.assertEqual(update_payload["pov"], "第一人称")
+            self.assertEqual(update_payload["tense"], "过去式")
+            self.assertEqual(update_payload["genre"], "学院奇幻")
+            self.assertEqual(update_payload["tone"], "克制")
+            self.assertEqual(update_payload["target_audience"], "青年读者")
+            self.assertEqual(update_payload["taboos"], ["避免说教", "避免跳脱"])
+            self.assertEqual(
+                update_payload["narrative_rules"],
+                ["聚焦主角感知", "单场景内避免大段回忆"],
+            )
+            self.assertEqual(update_payload["title"], "测试书")
+            self.assertEqual(update_payload["world"]["rules"], ["魔法存在"])
+
+            overview_response = client.get("/api/projects/demo")
+            self.assertEqual(overview_response.status_code, 200)
+            overview_payload = overview_response.get_json()
+            self.assertEqual(overview_payload["style"], "严肃奇幻")
+
+            stored_meta = json.loads(
+                (Path(tmp) / "projects" / "demo" / "meta.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(stored_meta["style"], "严肃奇幻")
+            self.assertEqual(stored_meta["pov"], "第一人称")
+            self.assertEqual(stored_meta["tense"], "过去式")
+            self.assertEqual(stored_meta["target_audience"], "青年读者")
+            self.assertEqual(stored_meta["title"], "测试书")
+            self.assertEqual(stored_meta["world"]["rules"], ["魔法存在"])
+
+            writing_response = client.post(
+                "/api/projects/demo/writing/send",
+                json={"text": "按新的叙事配置写一段"},
+            )
+            self.assertEqual(writing_response.status_code, 200)
+            self.assertEqual(writing_response.get_json()["reply"], "按新设定生成的正文")
+
+            system_prompt = model.last_messages[0].content
+            assert isinstance(system_prompt, str)
+            self.assertIn("文风：严肃奇幻", system_prompt)
+            self.assertIn("叙述人称：第一人称", system_prompt)
+            self.assertIn("叙事时态：过去式", system_prompt)
+            self.assertIn("目标读者：青年读者", system_prompt)
+            self.assertIn("叙事规则：", system_prompt)
+
+    def test_update_meta_rejects_empty_style(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(Path(tmp))
+            client = app.test_client()
+
+            client.post("/api/projects/demo/open")
+            update_response = client._request(
+                "PUT",
+                "/api/projects/demo/meta",
+                {"style": "   "},
+            )
+            self.assertEqual(update_response.status_code, 400)
+            self.assertEqual(update_response.get_json()["error"], "style 不能为空")
+
+            meta_response = client.get("/api/projects/demo/meta")
+            self.assertEqual(meta_response.status_code, 200)
+            self.assertEqual(meta_response.get_json()["style"], "轻小说")
+
     def test_writing_route_and_legacy_send_alias_share_behavior(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app = _build_app(
@@ -633,6 +745,16 @@ class _InterruptibleReplyModel(_ReplyModel):
         reply = self.invoke(messages).content
         for char in reply:
             yield _FakeChunk(char)
+
+
+class _RecordingReplyModel(_ReplyModel):
+    def __init__(self, replies: list[str] | None = None) -> None:
+        super().__init__(replies)
+        self.last_messages: list[object] = []
+
+    def invoke(self, messages: list[object]) -> _FakeResponse:
+        self.last_messages = list(messages)
+        return super().invoke(messages)
 
 
 class _StubCanonExtractor:

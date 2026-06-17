@@ -36,6 +36,11 @@ class SessionRegistry:
             self._sessions[project_id] = handle
             return handle
 
+    def replace(self, project_id: str, handle: SessionHandle) -> SessionHandle:
+        with self._lock:
+            self._sessions[project_id] = handle
+            return handle
+
     def clear(self) -> None:
         with self._lock:
             self._sessions.clear()

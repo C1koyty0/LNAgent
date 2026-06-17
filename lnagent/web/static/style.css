@@ -155,6 +155,22 @@ a {
   resize: vertical;
 }
 
+.meta-readonly-box {
+  margin-bottom: 0.75rem;
+}
+
+.meta-form {
+  margin-top: 0.75rem;
+}
+
+.meta-form-note {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.meta-form textarea {
+  min-height: 4.5rem;
+}
+
 .discussion-brief-dirty {
   color: #8c5a15;
 }

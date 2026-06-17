@@ -102,6 +102,45 @@ class AppService:
     def get_meta(self, project_id: str) -> dict:
         return self.open_project(project_id).meta.to_dict()
 
+    def update_meta(self, project_id: str, meta_data: dict) -> dict:
+        handle = self.open_project(project_id)
+        if not isinstance(meta_data, dict):
+            raise ValueError("meta 数据必须是对象")
+
+        merged = handle.meta.to_dict()
+        for field in (
+            "style",
+            "pov",
+            "tense",
+            "genre",
+            "tone",
+            "target_audience",
+        ):
+            if field in meta_data:
+                raw_value = meta_data.get(field)
+                merged[field] = "" if raw_value is None else str(raw_value).strip()
+
+        for field in ("taboos", "narrative_rules"):
+            if field in meta_data:
+                merged[field] = self._normalize_meta_list(meta_data.get(field))
+
+        if not str(merged.get("style", "")).strip():
+            raise ValueError("style 不能为空")
+
+        updated_meta = NovelMeta.from_dict(merged)
+        handle.store.save_meta(updated_meta)
+        handle.session.update_meta(updated_meta)
+        self._registry.replace(
+            handle.project_id,
+            SessionHandle(
+                project_id=handle.project_id,
+                store=handle.store,
+                meta=updated_meta,
+                session=handle.session,
+            ),
+        )
+        return updated_meta.to_dict()
+
     def get_canon(self, project_id: str) -> dict:
         return self.open_project(project_id).store.load_canon().to_dict()
 
@@ -509,3 +548,18 @@ class AppService:
             "stack_index": item.stack_index,
             "proposal": cls._proposal_to_dict(item.proposal),
         }
+
+    @staticmethod
+    def _normalize_meta_list(value: Any) -> list[str]:
+        if isinstance(value, list):
+            items = value
+        elif value is None:
+            items = []
+        else:
+            items = [value]
+        normalized: list[str] = []
+        for item in items:
+            text = str(item).strip()
+            if text:
+                normalized.append(text)
+        return normalized

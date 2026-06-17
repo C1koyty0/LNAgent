@@ -76,6 +76,9 @@ class SimpleTestClient:
     def post(self, path: str, json: dict | None = None) -> SimpleResponse:
         return self._request("POST", path, json)
 
+    def put(self, path: str, json: dict | None = None) -> SimpleResponse:
+        return self._request("PUT", path, json)
+
     def _request(self, method: str, path: str, payload: dict | None) -> SimpleResponse:
         body = b""
         content_length = "0"
@@ -155,6 +158,8 @@ class SimpleWebApp:
             )
         if method == "GET" and suffix == "/meta":
             return self._json_response(self._service.get_meta(project_id))
+        if method == "PUT" and suffix == "/meta":
+            return self._json_response(self._service.update_meta(project_id, payload))
         if method == "GET" and suffix == "/canon":
             return self._json_response(self._service.get_canon(project_id))
         if method == "GET" and suffix == "/synopsis":
@@ -539,7 +544,21 @@ def _render_project(project_id: str) -> str:
         "</section>"
         "<section class='panel'>"
         "<h2>Meta</h2>"
-        "<div id='meta-summary' class='summary-block'></div>"
+        "<div id='meta-summary' class='summary-block meta-readonly-box'><p class='hint'>加载中…</p></div>"
+        "<p id='meta-form-note' class='hint meta-form-note'>可在此编辑叙事字段；书名与世界规则保持只读。</p>"
+        "<form id='meta-form' class='form-grid meta-form'>"
+        "<label>文风<input id='meta-style-input' type='text' required></label>"
+        "<label>叙述人称<input id='meta-pov-input' type='text' placeholder='例如 第一人称'></label>"
+        "<label>叙事时态<input id='meta-tense-input' type='text' placeholder='例如 过去式'></label>"
+        "<label>题材类型<input id='meta-genre-input' type='text' placeholder='例如 学院奇幻'></label>"
+        "<label>整体语气<input id='meta-tone-input' type='text' placeholder='例如 克制'></label>"
+        "<label>目标读者<input id='meta-target-audience-input' type='text' placeholder='例如 青年读者'></label>"
+        "<label>禁忌（每行一条）<textarea id='meta-taboos-input' rows='4' placeholder='每行一条禁忌…'></textarea></label>"
+        "<label>叙事规则（每行一条）<textarea id='meta-narrative-rules-input' rows='4' placeholder='每行一条规则…'></textarea></label>"
+        "<div class='button-row'>"
+        "<button type='button' class='primary' data-action='meta-save'>保存 meta</button>"
+        "</div>"
+        "</form>"
         "<details><summary>原始 JSON</summary>"
         "<pre id='meta-json' class='pre-block json-block'></pre></details>"
         "</section>"

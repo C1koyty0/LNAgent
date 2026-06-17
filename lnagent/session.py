@@ -138,6 +138,9 @@ class NovelSession:
     def last_budget_report(self) -> BudgetReport:
         return self._last_budget_report
 
+    def update_meta(self, meta: NovelMeta) -> None:
+        self._meta = meta
+
     def can_switch_scene(self) -> bool:
         return len(self._buffer.adopt_stack) > 0
 
