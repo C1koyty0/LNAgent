@@ -147,17 +147,22 @@
 
 **任务清单**：
 
-- [ ] WK1.1 定义 extraction prompt 与 `WorldbookStructured` schema 映射
-- [ ] WK1.2 实现 `WorldbookExtractor.extract(source_md: str) → WorldbookStructured`
-- [ ] WK1.3 编写 extractor 单元测试（mock LLM 响应）
+- [x] WK1.1 定义 extraction prompt 与 `WorldbookStructured` schema 映射
+- [x] WK1.2 实现 `WorldbookExtractor.extract(source_md: str) → WorldbookStructured`
+- [x] WK1.3 编写 extractor 单元测试（mock LLM 响应）
 
 **验收**：
 
-- [ ] 有效 Markdown → 合法 `WorldbookStructured`
-- [ ] 空 source → 空 structured（或明确报错）
-- [ ] LLM 返回非法 JSON → 明确解析错误
-- [ ] `glossary` / `open_questions` 可为空
-- [ ] `global_rules` / `scopes` 可正确填充
+- [x] 有效 Markdown → 合法 `WorldbookStructured`
+- [x] 空 source → 空 structured（不调用模型）
+- [x] LLM 返回非法 JSON → 明确解析错误
+- [x] `glossary` / `open_questions` 可为空
+- [x] `global_rules` / `scopes` 可正确填充
+
+**验收结果（2026-06-19）**：
+
+- `python -m unittest tests.test_worldbook_extractor -v` ✅（4 tests）
+- `python -m unittest tests.test_worldbook_extractor tests.test_worldbook_store -v` ✅（10 tests）
 
 **验收命令（建议）**：
 
