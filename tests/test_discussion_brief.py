@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from lnagent.memory.models import ChatMessage, DiscussionBrief, HotCanon, NovelMeta
+from lnagent.memory.models import ChatMessage, DiscussionBrief, HotCanon, NovelMeta, WorldCanon
 from lnagent.memory.discussion_brief import (
     DiscussionBriefRefreshError,
     DiscussionBriefRefresher,
@@ -35,7 +35,7 @@ class DiscussionBriefRefresherTest(unittest.TestCase):
             '{"todo_items":["写开篇"],"constraints":["不要引入新角色"],"open_questions":["导师何时出场"]}'
         )
         refresher = DiscussionBriefRefresher(model)
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
 
         brief = refresher.refresh(
             scene_id="scene_001",
@@ -58,7 +58,7 @@ class DiscussionBriefRefresherTest(unittest.TestCase):
         brief = refresher.refresh(
             scene_id="scene_002",
             messages=[ChatMessage(role="user", content="讨论")],
-            meta=NovelMeta(title="书", world_rules=[], style="轻松"),
+            meta=NovelMeta(title="书", world=WorldCanon(), style="轻松"),
             canon=HotCanon.empty(),
         )
 
@@ -77,7 +77,7 @@ class DiscussionBriefRefresherTest(unittest.TestCase):
             refresher.refresh(
                 scene_id="scene_003",
                 messages=[ChatMessage(role="user", content="讨论")],
-                meta=NovelMeta(title="书", world_rules=[], style="轻松"),
+                meta=NovelMeta(title="书", world=WorldCanon(), style="轻松"),
                 canon=HotCanon.empty(),
             )
 
@@ -89,7 +89,7 @@ class DiscussionBriefRefresherTest(unittest.TestCase):
             refresher.refresh(
                 scene_id="scene_004",
                 messages=[ChatMessage(role="user", content="讨论")],
-                meta=NovelMeta(title="书", world_rules=[], style="轻松"),
+                meta=NovelMeta(title="书", world=WorldCanon(), style="轻松"),
                 canon=HotCanon.empty(),
             )
 
@@ -105,7 +105,7 @@ class DiscussionBriefRefresherTest(unittest.TestCase):
         brief = refresher.refresh(
             scene_id="scene_005",
             messages=[ChatMessage(role="user", content="讨论")],
-            meta=NovelMeta(title="书", world_rules=[], style="轻松"),
+            meta=NovelMeta(title="书", world=WorldCanon(), style="轻松"),
             canon=HotCanon.empty(),
         )
 
@@ -120,7 +120,7 @@ class DiscussionBriefRefresherTest(unittest.TestCase):
         refresher.refresh(
             scene_id="scene_006",
             messages=[ChatMessage(role="user", content="讨论")],
-            meta=NovelMeta(title="书", world_rules=[], style="轻松"),
+            meta=NovelMeta(title="书", world=WorldCanon(), style="轻松"),
             canon=HotCanon.empty(),
         )
 
@@ -130,7 +130,7 @@ class DiscussionBriefRefresherTest(unittest.TestCase):
         model = _FakeBriefModel('{"todo_items":[],"constraints":[],"open_questions":[]}')
         refresher = DiscussionBriefRefresher(model)
 
-        meta = NovelMeta(title="测试书", world_rules=["规则"], style="轻松")
+        meta = NovelMeta(title="测试书", world=WorldCanon(rules=["规则"]), style="轻松")
         canon = HotCanon.empty()
         canon.characters.append({"name": "主角"})  # type: ignore[arg-type]
 

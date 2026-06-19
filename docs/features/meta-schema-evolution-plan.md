@@ -14,7 +14,7 @@
 | 迁移 A | 读盘惰性升级；`world_rules[]` 按「名称 - 正文」启发式拆入 scoped |
 | 迁移 B | `/meta migrate`（LLM 整表 → y/n → 写盘） |
 | Prompt | 与 Canon 共用 `resolve_active_scopes`（角色 location + Cold location） |
-| 兼容 | 读 v1、写 v2；`InitVar world_rules` 支持旧构造方式 |
+| 兼容 | 读 v1、写 v2；保留 `upgrade_meta_dict()` 负责旧 `world_rules[]` 的读盘迁移 |
 
 ---
 
@@ -55,7 +55,7 @@
 - [x] `lnagent/memory/models.py` — `NovelMeta.world` + `schema_version`
 - [x] `lnagent/memory/prompt.py` — 按需注入 meta scoped
 - [x] `lnagent/cli/meta_cmd.py` — `/meta`、`/meta migrate`
-- [x] `lnagent/project.py` — 校验 `world` 或 `world_rules`
+- [x] `lnagent/project.py` — 校验 `world` 结构，并允许 v1 `world_rules` 通过读盘迁移进入 v2
 - [x] `tests/test_meta_schema_v2.py`
 
 ---

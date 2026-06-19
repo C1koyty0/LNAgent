@@ -16,16 +16,8 @@ def collect_novel_meta() -> NovelMeta:
     print("\n--- 新建小说项目 ---")
     title = _prompt_required("书名")
     style = _prompt_required("文风（如：第一人称、轻松日常）")
-
-    print("世界规则（每行一条，空行结束；直接回车可跳过）：")
-    world_rules: list[str] = []
-    while True:
-        line = input("  规则: ").strip()
-        if not line:
-            break
-        world_rules.append(line)
-
-    return NovelMeta(title=title, world_rules=world_rules, style=style)
+    print("当前 CLI 创建阶段不采集世界观；如需预置世界观，请使用 --meta <path>，或稍后在 Web 端 Worldbook 工作台补充。")
+    return NovelMeta(title=title, style=style)
 
 
 def init_project(store: JsonMemoryStore) -> NovelMeta:
@@ -101,20 +93,15 @@ def _load_meta_from_data(data: object) -> NovelMeta:
 
 def _validate_world_content(data: dict) -> None:
     world = data.get("world")
-    if isinstance(world, dict):
-        rules = world.get("rules", [])
-        scoped = world.get("scoped", [])
-        if not isinstance(rules, list):
-            raise ValueError("meta JSON 字段 world.rules 必须是数组")
-        if not isinstance(scoped, list):
-            raise ValueError("meta JSON 字段 world.scoped 必须是数组")
+    if not isinstance(world, dict):
         return
 
-    world_rules = data.get("world_rules")
-    if world_rules is None:
-        return
-    if not isinstance(world_rules, list):
-        raise ValueError("meta JSON 字段 world_rules 必须是数组")
+    rules = world.get("rules", [])
+    scoped = world.get("scoped", [])
+    if not isinstance(rules, list):
+        raise ValueError("meta JSON 字段 world.rules 必须是数组")
+    if not isinstance(scoped, list):
+        raise ValueError("meta JSON 字段 world.scoped 必须是数组")
 
 
 def _prompt_required(label: str) -> str:

@@ -105,7 +105,7 @@ projects/<novel_id>/
 
 **open-questions 暂按默认**：
 
-- L4：meta 注入 `title`、`world_rules`、`style`（开书时必填此三字段）
+- L4：meta 注入 `title`、`world.rules`、`style`（最初开书必填的是 title / style；世界观现走 `world` / worldbook 路径）
 - P5：Phase 1 暂按每轮 `send` 写盘；**Phase 5.5** 改为 checkpoint_only（见 Phase 5.5）
 
 ---
@@ -238,7 +238,7 @@ projects/<novel_id>/
 - **T8 计量单位**：**字符**（与 tail 500 字一致）；MVP 不引入 tokenizer 依赖。
 - **T8 默认预算**：总预算 `300000` 字符；分块默认值为 `messages=80000`、`adopted_prose=120000`、`hot_canon=60000`、`global=30000`、`prior_scene_cold=12000`、`scene_tail=2000`、`meta=10000`。
 - **T8 裁剪对象**（各块可独立上限 + 总预算）：Hot Canon、`synopsis.global`、上一场景 Cold、`scene_tail`、当前场景 `messages`、当前场景 `adopted_prose`。
-- **T8 裁剪顺序**（总预算仍超则按序裁到达标）：**最旧 `messages` → `adopted_prose` 头部 → 压缩 `global` 文本 → Hot Canon 角色/数组字段**；`meta`（title/style/world_rules）、本轮 `user_input`、**tail 优先保留**（tail 可先截断至上限，但不整段丢弃除非配置允许）。
+- **T8 裁剪顺序**（总预算仍超则按序裁到达标）：**最旧 `messages` → `adopted_prose` 头部 → 压缩 `global` 文本 → Hot Canon 角色/数组字段**；`meta`（title/style/world.rules）、本轮 `user_input`、**tail 优先保留**（tail 可先截断至上限，但不整段丢弃除非配置允许）。
 - **T8 配置入口**：`/config` 修改当前项目的 `config.json`，立即生效并持久化；启动级 `Settings` 仍只负责 API/model/project 路径。
 - **T8 作者感知**：发生裁剪时 **CLI 提示**（如「已裁剪历史对话约 N 字」）；不 silent fail。
 - **C6 规则（MVP 组合，OR）**：保留「`adopt_stack` 次数 ≥ 2」；增加「连续 M 轮无 `/a`」（M 默认 3，通过 `/config` 可调）；暂不做完成/收束信号词和冷却；仍 **仅建议**，不自动 `/sc`。

@@ -124,14 +124,3 @@ def _looks_like_scope_name(name: str) -> bool:
 
 def _is_faction_name(name: str) -> bool:
     return any(marker in name for marker in _FACTION_MARKERS)
-
-
-def split_rules_for_display(rules: list[str]) -> tuple[list[str], list[dict[str, Any]]]:
-    """将平铺规则拆为全局 + scoped（供测试与工具使用）。"""
-    data = {"world_rules": rules}
-    _migrate_legacy_world_rules(data)
-    world = data.get("world", {})
-    return (
-        list(world.get("rules", [])),
-        list(world.get("scoped", [])),
-    )

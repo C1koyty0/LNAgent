@@ -195,7 +195,7 @@
 - 若 `structured.json` 不存在或为空，apply 应报错而非静默清空 `meta.world`
 - apply 不影响 `session.json`、`canon.json`、`synopsis.json`、`config.json`
 - 第一版不需要 undo apply
-- 已知 follow-up：当前 `NovelMeta` / `world_rules` 仍带有旧数组入口兼容包袱；该问题暂不在 WK2 内修补，后续随 meta/world 结构化改造一并处理
+- 相关 follow-up 已收口：`NovelMeta` 运行时旧 `world_rules` 构造入口已移除，仅保留读盘 v1 → v2 迁移
 
 **建议文件**：
 
@@ -401,7 +401,7 @@
 
 **本阶段实际验证**：
 
-- [x] `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_home_page_and_project_page_render tests.test_web_app.WebAppIntegrationTest.test_static_assets_are_served tests.test_web_app.WebAppIntegrationTest.test_create_project_via_api tests.test_memory_store.ProjectInitTest.test_load_meta_from_file_requires_required_fields tests.test_memory_store.ProjectInitTest.test_collect_novel_meta_allows_skipping_world_rules -v`
+- [x] `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_home_page_and_project_page_render tests.test_web_app.WebAppIntegrationTest.test_static_assets_are_served tests.test_web_app.WebAppIntegrationTest.test_create_project_via_api tests.test_memory_store.ProjectInitTest.test_load_meta_from_file_requires_required_fields tests.test_memory_store.ProjectInitTest.test_collect_novel_meta_skips_legacy_world_rules_prompt -v`
 - [x] `python -m unittest tests.test_web_app tests.test_memory_store tests.test_web_bootstrap -v && python -m py_compile lnagent/project.py lnagent/app_service.py lnagent/web/app.py lnagent/memory/models.py && node --check lnagent/web/static/home.js && node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js`
 
 ---
@@ -468,7 +468,7 @@
 - 补齐 worldbook 状态机，确保 source 变更后不再返回 `applied`
 - 对 source-changed / stale 场景禁止 apply
 - 同步更新 Web 端 badge / note / 按钮行为
-- 在阶段完成后，回到已记录的 follow-up，讨论 `NovelMeta` / `world_rules` 旧兼容入口如何收口
+- 在阶段完成后，已完成 `NovelMeta` / `world_rules` 旧兼容入口收口，仅保留读盘迁移层
 
 **预期效果**：
 
@@ -483,7 +483,7 @@
 - source 变更后 **禁止 apply**
 - 本阶段直接回落到 `source_only`，不新增 `preview_stale`
 - 第一版不做 preview history / diff
-- 该阶段完成后，不直接继续扩 glossary / RAG；先讨论之前保留的 todo：`NovelMeta` / `world_rules` 旧数组入口兼容包袱的实现方案
+- 该阶段完成后，不直接继续扩 glossary / RAG；已先完成之前保留的 todo：`NovelMeta` / `world_rules` 旧数组入口兼容包袱收口
 
 **建议文件**：
 
@@ -536,5 +536,6 @@
 | 日期 | 说明 |
 |------|------|
 | 2026-06-19 | 初稿：WK0 存储层、WK1 提炼器、WK2 apply、WK3 API、WK4 前端、WK5 移除旧入口、WK6 测试收口 |
-| 2026-06-19 | 补充 WB2.1：source 变更后清理旧 preview、禁止 apply，并约定本阶段完成后再讨论 `NovelMeta` / `world_rules` 旧兼容入口 todo |
+| 2026-06-19 | 补充 WB2.1：source 变更后清理旧 preview、禁止 apply，并约定本阶段完成后收口 `NovelMeta` / `world_rules` 旧兼容入口 |
+| 2026-06-19 | 完成 legacy `world_rules` 运行时入口清理：移除 `InitVar` / property / CLI 旧提示 / 顶层预校验 / 死代码，仅保留 v1 读盘迁移 |
 | 2026-06-19 | WB2.1 完成：source 保存后清理 `structured.json`、状态直接回落 `source_only`、apply 仅允许 `preview_ready`，补齐回归测试与文档状态同步 |

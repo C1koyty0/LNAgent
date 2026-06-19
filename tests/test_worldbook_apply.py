@@ -104,7 +104,7 @@ class WorldbookApplyTest(unittest.TestCase):
             empty_store = JsonMemoryStore(Path(tmp) / "demo")
             empty_store.ensure_project_layout()
             empty_store.save_meta(
-                NovelMeta(title="测试书", style="轻松", world_rules=[])
+                NovelMeta(title="测试书", style="轻松", world=WorldCanon())
             )
 
             with self.assertRaises(WorldbookApplyError):

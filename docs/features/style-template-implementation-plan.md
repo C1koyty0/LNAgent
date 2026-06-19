@@ -76,7 +76,7 @@
 - `format_meta_for_prompt()` — 注入 Prompt（所有非空字段均注入）
 - `renderMetaSummary()` — Web 侧栏只读展示
 - `AppService.get_meta()` — Web API `GET /api/projects/<id>/meta`
-- `POST /api/projects` — 创建时仅收 `title / style / world_rules`
+- `POST /api/projects` — 创建时收 `title / style`，并可选携带 `worldbook_source`
 
 ### 现有缺口
 
@@ -266,7 +266,7 @@
 - 模板选择是纯前端预填，不改变后端创建 API 的语义
 - 若模板不含某字段，该字段保持空白
 - 模板的 `title`（如有）可作为项目名建议预填，但作者可覆盖
-- 模板不影响 `world_rules`——该字段仍需要作者手动填写
+- 模板不影响 `world` / worldbook 内容——世界观内容仍通过项目内 worldbook 流程单独管理
 
 **建议文件**：
 

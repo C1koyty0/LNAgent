@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
@@ -277,7 +277,6 @@ class WorldbookStructured:
 class NovelMeta:
     title: str
     style: str
-    world_rules: InitVar[list[str] | None] = None
     world: WorldCanon = field(default_factory=WorldCanon)
     schema_version: int = 2
     pov: str = ""
@@ -287,20 +286,6 @@ class NovelMeta:
     narrative_rules: list[str] = field(default_factory=list)
     genre: str = ""
     tone: str = ""
-
-    def __post_init__(self, world_rules: list[str] | None) -> None:
-        if (
-            isinstance(world_rules, list)
-            and world_rules
-            and not self.world.rules
-            and not self.world.scoped
-        ):
-            self.world = WorldCanon(rules=[str(rule) for rule in world_rules])
-
-    @property
-    def world_rules(self) -> list[str]:
-        """向后兼容：仅指全局规则（不含 scoped）。"""
-        return list(self.world.rules)
 
     def to_dict(self) -> dict[str, Any]:
         return {

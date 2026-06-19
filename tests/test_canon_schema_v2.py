@@ -19,9 +19,8 @@ from lnagent.memory.canon_migrate import (
     slugify,
     upgrade_canon_dict,
 )
-from lnagent.memory.models import HotCanon, ScopedWorldRules, WorldCanon
+from lnagent.memory.models import HotCanon, NovelMeta, ScopedWorldRules, WorldCanon
 from lnagent.memory.prompt import PromptContextBuilder
-from lnagent.memory.models import NovelMeta
 from lnagent.memory.short_term import ShortTermBuffer
 from lnagent.memory.store import JsonMemoryStore
 
@@ -232,7 +231,7 @@ class CanonStoreSchemaTest(unittest.TestCase):
             store = JsonMemoryStore(Path(tmp) / "proj")
             store.ensure_project_layout()
             store.save_meta(
-                NovelMeta(title="t", world_rules=[], style="s")
+                NovelMeta(title="t", world=WorldCanon(), style="s")
             )
             store.save_canon(
                 HotCanon(
@@ -309,7 +308,7 @@ class PromptBuilderSchemaTest(unittest.TestCase):
             ],
         )
         messages = builder.build(
-            meta=NovelMeta(title="t", world_rules=[], style="s"),
+            meta=NovelMeta(title="t", world=WorldCanon(), style="s"),
             canon=canon,
             buffer=ShortTermBuffer(scene_id="scene_001"),
             user_input="继续",

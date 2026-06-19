@@ -71,20 +71,34 @@ class JsonMemoryStoreTest(unittest.TestCase):
     def test_meta_round_trip(self) -> None:
         meta = NovelMeta(
             title="测试书",
-            world_rules=["魔法存在"],
+            world=WorldCanon(rules=["魔法存在"]),
             style="第三人称",
         )
         self.store.ensure_project_layout()
         self.store.save_meta(meta)
         loaded = self.store.load_meta()
         self.assertEqual(loaded.title, "测试书")
-        self.assertEqual(loaded.world_rules, ["魔法存在"])
+        self.assertEqual(loaded.world.rules, ["魔法存在"])
         self.assertEqual(loaded.style, "第三人称")
+
+    def test_novel_meta_rejects_legacy_world_rules_constructor(self) -> None:
+        with self.assertRaises(TypeError):
+            NovelMeta(
+                title="测试书",
+                world_rules=["魔法存在"],
+                style="第三人称",
+            )
+
+    def test_novel_meta_exposes_world_only_without_legacy_property(self) -> None:
+        meta = NovelMeta(title="测试书", style="第三人称")
+
+        with self.assertRaises(AttributeError):
+            getattr(meta, "world_rules")
 
     def test_extended_meta_round_trip(self) -> None:
         meta = NovelMeta(
             title="测试书",
-            world_rules=["魔法存在"],
+            world=WorldCanon(rules=["魔法存在"]),
             style="轻松",
             pov="第一人称",
             tense="现在时",
@@ -232,10 +246,48 @@ class ProjectInitTest(unittest.TestCase):
             self.assertEqual(meta.style, "轻松")
             self.assertEqual(meta.world.rules, [])
 
-    def test_collect_novel_meta_allows_skipping_world_rules(self) -> None:
+    def test_load_meta_from_file_allows_legacy_world_rules_without_prevalidation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            meta_path = Path(tmp) / "meta.json"
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "title": "测试书",
+                        "style": "轻松",
+                        "world_rules": ["魔法存在"],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            meta = load_meta_from_file(meta_path)
+
+            self.assertEqual(meta.world.rules, ["魔法存在"])
+
+    def test_load_meta_from_file_ignores_non_list_legacy_world_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            meta_path = Path(tmp) / "meta.json"
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "title": "测试书",
+                        "style": "轻松",
+                        "world_rules": "魔法存在",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            meta = load_meta_from_file(meta_path)
+
+            self.assertEqual(meta.world.rules, [])
+
+    def test_collect_novel_meta_skips_legacy_world_rules_prompt(self) -> None:
         with patch(
             "builtins.input",
-            side_effect=["测试书", "轻松日常", ""],
+            side_effect=["测试书", "轻松日常"],
         ):
             meta = collect_novel_meta()
 
@@ -271,7 +323,9 @@ class ProjectInitTest(unittest.TestCase):
             root = Path(tmp)
             store = JsonMemoryStore(root / "project")
             store.ensure_project_layout()
-            store.save_meta(NovelMeta(title="旧书", world_rules=["旧规则"], style="轻松"))
+            store.save_meta(
+                NovelMeta(title="旧书", world=WorldCanon(rules=["旧规则"]), style="轻松")
+            )
             meta_path = root / "meta.json"
             meta_path.write_text(
                 json.dumps(
@@ -419,7 +473,7 @@ class PromptContextBuilderTest(unittest.TestCase):
     def test_build_includes_meta_history_and_user(self) -> None:
         meta = NovelMeta(
             title="异世界学院",
-            world_rules=["禁止高阶魔法"],
+            world=WorldCanon(rules=["禁止高阶魔法"]),
             style="轻松",
         )
         buffer = ShortTermBuffer(
@@ -450,7 +504,7 @@ class PromptContextBuilderTest(unittest.TestCase):
     def test_build_includes_hot_canon(self) -> None:
         meta = NovelMeta(
             title="异世界学院",
-            world_rules=["禁止高阶魔法"],
+            world=WorldCanon(rules=["禁止高阶魔法"]),
             style="轻松",
         )
         canon = HotCanon(
@@ -487,7 +541,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertIn("钟楼封印", system.content)
 
     def test_build_new_scene_includes_global_prior_cold_and_tail(self) -> None:
-        meta = NovelMeta(title="异世界学院", world_rules=[], style="轻松")
+        meta = NovelMeta(title="异世界学院", world=WorldCanon(), style="轻松")
         prior = SceneSynopsisEntry(
             id="scene_001",
             location="酒馆",
@@ -517,7 +571,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertNotIn("已采纳正文（当前场景）", system.content)
 
     def test_build_includes_discussion_writing_boundary_instruction(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         builder = PromptContextBuilder()
 
         messages = builder.build(
@@ -535,7 +589,7 @@ class PromptContextBuilderTest(unittest.TestCase):
     def test_build_includes_non_empty_extended_meta_fields(self) -> None:
         meta = NovelMeta(
             title="书",
-            world_rules=[],
+            world=WorldCanon(),
             style="轻松",
             pov="第一人称",
             tense="现在时",
@@ -567,7 +621,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertIn("整体语气：温暖明快", system.content)
 
     def test_build_skips_empty_extended_meta_fields(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         builder = PromptContextBuilder()
 
         messages = builder.build(
@@ -588,7 +642,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertNotIn("整体语气：", system.content)
 
     def test_build_trims_oldest_messages_by_context_config(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         buffer = ShortTermBuffer(
             scene_id="scene_001",
             messages=[
@@ -616,7 +670,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertGreater(builder.last_budget_report.clipped_chars["messages"], 0)
 
     def test_build_trims_adopted_prose_head_by_context_config(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         buffer = ShortTermBuffer(scene_id="scene_001", adopted_prose="abcdef")
         builder = PromptContextBuilder()
 
@@ -635,7 +689,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertEqual(builder.last_budget_report.clipped_chars["adopted_prose"], 3)
 
     def test_build_applies_total_budget_after_block_limits(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         buffer = ShortTermBuffer(
             scene_id="scene_001",
             messages=[ChatMessage(role="user", content="旧" * 500)],
@@ -662,7 +716,7 @@ class PromptContextBuilderTest(unittest.TestCase):
     # ── D1: dual-track prompt builder ──
 
     def test_build_writing_injects_brief_block(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         brief = DiscussionBrief(
             scene_id="scene_001",
             todo_items=["先写主角的不适应感"],
@@ -689,7 +743,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertIn("导师是否本场出场未定", system.content)
 
     def test_build_writing_no_empty_brief_block_when_none(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         builder = PromptContextBuilder()
 
         messages = builder.build_writing(
@@ -705,7 +759,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertNotIn("当前场景讨论结论", system.content)
 
     def test_build_discussion_uses_discussion_instructions(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         builder = PromptContextBuilder()
 
         messages = builder.build_discussion(
@@ -722,7 +776,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         )
 
     def test_build_discussion_excludes_adopted_prose(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         buffer = ShortTermBuffer(
             scene_id="scene_001",
             adopted_prose="已采纳的正文。",
@@ -741,7 +795,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertNotIn("已采纳正文（当前场景）", system.content)
 
     def test_build_discussion_includes_scene_tail(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         builder = PromptContextBuilder()
 
         messages = builder.build_discussion(
@@ -758,7 +812,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertIn("他推开了门", system.content)
 
     def test_build_writing_preserves_block_order(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         brief = DiscussionBrief(
             scene_id="scene_001",
             todo_items=["待写事项"],
@@ -782,7 +836,7 @@ class PromptContextBuilderTest(unittest.TestCase):
         self.assertLess(brief_pos, prose_pos)
 
     def test_build_is_compat_alias_for_build_writing(self) -> None:
-        meta = NovelMeta(title="书", world_rules=[], style="轻松")
+        meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
         brief = DiscussionBrief(
             scene_id="scene_001",
             todo_items=["待写事项"],
@@ -955,7 +1009,7 @@ class SessionCheckpointPersistTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = CountingMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(store, _FakeModel(), meta)
             store.save_session_count = 0
 
@@ -968,7 +1022,7 @@ class SessionCheckpointPersistTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = CountingMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -988,7 +1042,7 @@ class SessionCheckpointPersistTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(store, _FakeModel(), meta)
             session.send("写开篇")
 
@@ -1003,7 +1057,7 @@ class SessionCheckpointPersistTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(store, _FakeModel(), meta)
             session.send("写开篇")
 
@@ -1045,7 +1099,7 @@ class NovelSessionTest(unittest.TestCase):
             config = ProjectConfig.default()
             config.context.char_budget = 500_000
             store.save_config(config)
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
 
             session = NovelSession(store, _FakeModel(), meta)
 
@@ -1055,7 +1109,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(store, _FakeModel(), meta)
             config = ProjectConfig.default()
             config.scene_switch.min_adopts = 4
@@ -1069,7 +1123,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(store, _FakeModel(), meta)
             config = ProjectConfig.default()
             config.scene_switch.no_adopt_turns = 9
@@ -1084,7 +1138,11 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="异世界学院", world_rules=["禁止高阶魔法"], style="轻松")
+            meta = NovelMeta(
+                title="异世界学院",
+                world=WorldCanon(rules=["禁止高阶魔法"]),
+                style="轻松",
+            )
             canon = HotCanon(
                 characters=[{"name": "莉亚", "abilities": ["影步"]}],
                 world=WorldCanon(rules=["暗属性魔法会侵蚀记忆"]),
@@ -1114,7 +1172,7 @@ class NovelSessionTest(unittest.TestCase):
             config = ProjectConfig.default()
             config.context.char_budget = 500_000
             store.save_config(config)
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             prompt_builder = _CapturingPromptBuilder()
             session = NovelSession(
                 store,
@@ -1137,7 +1195,7 @@ class NovelSessionTest(unittest.TestCase):
             store.save_config(config)
             store.rewrite_scene_manuscript("scene_001", "甲" * 1_000)
             store.save_session(SceneSession(scene_id="scene_002"))
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             prompt_builder = _CapturingPromptBuilder()
             session = NovelSession(
                 store,
@@ -1154,7 +1212,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1178,7 +1236,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             prompt_builder = _CapturingPromptBuilder()
             session = NovelSession(
                 store,
@@ -1197,7 +1255,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _SequenceResponseModel(["写作回复", "讨论回复"]),
@@ -1215,7 +1273,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _SequenceResponseModel(["写作回复", "讨论回复"]),
@@ -1232,7 +1290,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(store, _FixedResponseModel("讨论回复"), meta)
 
             session.send_discussion("讨论一下这段节拍")
@@ -1249,7 +1307,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             prompt_builder = _CapturingPromptBuilder()
             session = NovelSession(
                 store,
@@ -1267,7 +1325,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(store, _StreamingModel(["讨论", "回复"]), meta)
 
             chunks = list(session.stream_send_discussion("讨论一下这段节拍"))
@@ -1291,7 +1349,7 @@ class NovelSessionTest(unittest.TestCase):
                     messages=[ChatMessage(role="user", content="写作用历史")],
                 )
             )
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             prompt_builder = _CapturingPromptBuilder()
             session = NovelSession(
                 store,
@@ -1312,7 +1370,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FixedResponseModel("讨论回复"),
@@ -1329,7 +1387,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             refresher = _FakeBriefRefresher()
             prompt_builder = _CapturingPromptBuilder()
             session = NovelSession(
@@ -1355,7 +1413,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             refresher = _FakeBriefRefresher()
             prompt_builder = _CapturingPromptBuilder()
             session = NovelSession(
@@ -1384,7 +1442,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             refresher = _FakeBriefRefresher(should_fail=True)
             prompt_builder = _CapturingPromptBuilder()
             session = NovelSession(
@@ -1419,7 +1477,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             refresher = _FakeBriefRefresher()
             session = NovelSession(
                 store,
@@ -1436,7 +1494,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             refresher = _FakeBriefRefresher()
             session = NovelSession(
                 store,
@@ -1456,7 +1514,11 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="异世界学院", world_rules=["禁止高阶魔法"], style="轻松")
+            meta = NovelMeta(
+                title="异世界学院",
+                world=WorldCanon(rules=["禁止高阶魔法"]),
+                style="轻松",
+            )
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1490,7 +1552,11 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="异世界学院", world_rules=["禁止高阶魔法"], style="轻松")
+            meta = NovelMeta(
+                title="异世界学院",
+                world=WorldCanon(rules=["禁止高阶魔法"]),
+                style="轻松",
+            )
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1522,7 +1588,11 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="异世界学院", world_rules=["禁止高阶魔法"], style="轻松")
+            meta = NovelMeta(
+                title="异世界学院",
+                world=WorldCanon(rules=["禁止高阶魔法"]),
+                style="轻松",
+            )
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1543,7 +1613,11 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="异世界学院", world_rules=["禁止高阶魔法"], style="轻松")
+            meta = NovelMeta(
+                title="异世界学院",
+                world=WorldCanon(rules=["禁止高阶魔法"]),
+                style="轻松",
+            )
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1571,7 +1645,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             patch = HotCanon(characters=[{"name": "莉亚", "abilities": ["影步"]}])
             session = NovelSession(
                 store,
@@ -1596,7 +1670,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             cold = _FakeColdExtractor(
                 ColdProposal(
                     location="酒馆",
@@ -1638,7 +1712,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1671,7 +1745,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             patch = HotCanon(characters=[{"name": "莉亚", "abilities": ["影步"]}])
             session = NovelSession(
                 store,
@@ -1700,7 +1774,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1731,7 +1805,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             patch = HotCanon(characters=[{"name": "莉亚", "abilities": ["影步"]}])
             session = NovelSession(
                 store,
@@ -1758,7 +1832,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1773,7 +1847,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1795,7 +1869,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FakeModel(),
@@ -1814,7 +1888,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             fix_patch = HotCanon(characters=[{"name": "莉亚", "abilities": []}])
             session = NovelSession(
                 store,
@@ -1850,7 +1924,7 @@ class NovelSessionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             store = JsonMemoryStore(Path(tmp) / "demo")
             store.ensure_project_layout()
-            meta = NovelMeta(title="书", world_rules=[], style="轻松")
+            meta = NovelMeta(title="书", world=WorldCanon(), style="轻松")
             session = NovelSession(
                 store,
                 _FakeModel(),

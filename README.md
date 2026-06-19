@@ -80,7 +80,7 @@ export MODEL="gpt-4o-mini"
 python main.py --project my_novel
 ```
 
-启动后在终端输入创作指示；输入 `quit`、`exit` 或 `q` 退出。项目不存在时将引导创建并填写世界观 meta。
+启动后在终端输入创作指示；输入 `quit`、`exit` 或 `q` 退出。项目不存在时将引导创建并填写 `title / style`；如需预置世界观，请使用 `--meta <path>`，或稍后在 Web 端 Worldbook 工作台补充。
 
 ### 5. 运行 Web/API（第一版）
 

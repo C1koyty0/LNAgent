@@ -12,7 +12,7 @@ from langchain_core.language_models import BaseChatModel
 
 from lnagent.bootstrap import bootstrap_project_runtime
 from lnagent.config import Settings
-from lnagent.memory.models import NovelMeta, SceneSession
+from lnagent.memory.models import NovelMeta, SceneSession, WorldCanon
 from lnagent.memory.store import JsonMemoryStore
 from lnagent.project_index import list_projects
 from lnagent.session import NovelSession
@@ -133,11 +133,11 @@ class ProjectIndexTest(unittest.TestCase):
             projects_dir = Path(tmp) / "projects"
             alpha = JsonMemoryStore(projects_dir / "alpha")
             alpha.ensure_project_layout()
-            alpha.save_meta(NovelMeta(title="Alpha", world_rules=["规则A"], style="轻松"))
+            alpha.save_meta(NovelMeta(title="Alpha", world=WorldCanon(rules=["规则A"]), style="轻松"))
 
             beta = JsonMemoryStore(projects_dir / "beta")
             beta.ensure_project_layout()
-            beta.save_meta(NovelMeta(title="Beta", world_rules=["规则B"], style="严肃"))
+            beta.save_meta(NovelMeta(title="Beta", world=WorldCanon(rules=["规则B"]), style="严肃"))
             beta.save_session(SceneSession(scene_id="scene_003"))
 
             summaries = list_projects(projects_dir)
@@ -153,7 +153,7 @@ class ProjectIndexTest(unittest.TestCase):
             projects_dir = Path(tmp) / "projects"
             valid = JsonMemoryStore(projects_dir / "valid")
             valid.ensure_project_layout()
-            valid.save_meta(NovelMeta(title="有效项目", world_rules=["规则"], style="轻松"))
+            valid.save_meta(NovelMeta(title="有效项目", world=WorldCanon(rules=["规则"]), style="轻松"))
 
             broken_dir = projects_dir / "broken"
             broken_dir.mkdir(parents=True)
