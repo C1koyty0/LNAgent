@@ -62,6 +62,7 @@ class JsonMemoryStoreTest(unittest.TestCase):
         self.assertTrue((self.store.project_dir / "memory" / "synopsis.json").is_file())
         self.assertTrue((self.store.project_dir / "config.json").is_file())
         self.assertTrue((self.store.project_dir / "session.json").is_file())
+        self.assertTrue((self.store.project_dir / "worldbook").is_dir())
         self.assertTrue(
             (self.store.project_dir / "manuscript" / "scene_001.md").is_file()
         )

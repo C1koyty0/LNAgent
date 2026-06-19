@@ -89,18 +89,23 @@
 
 **任务清单**：
 
-- [ ] WK0.1 定义 `WorldbookStructured`、`WorldbookScope`、`WorldbookGlossaryEntry` 数据模型
-- [ ] WK0.2 在 `JsonMemoryStore` 新增 worldbook 路径与读写接口
-- [ ] WK0.3 在 `ensure_project_layout()` 中预创建 `worldbook/` 目录
-- [ ] WK0.4 编写 worldbook store 单元测试
+- [x] WK0.1 定义 `WorldbookStructured`、`WorldbookScope`、`WorldbookGlossaryEntry` 数据模型
+- [x] WK0.2 在 `JsonMemoryStore` 新增 worldbook 路径与读写接口
+- [x] WK0.3 在 `ensure_project_layout()` 中预创建 `worldbook/` 目录
+- [x] WK0.4 编写 worldbook store 单元测试
 
 **验收**：
 
-- [ ] `load_worldbook_source()` / `save_worldbook_source()` round trip
-- [ ] `load_worldbook_structured()` / `save_worldbook_structured()` round trip
-- [ ] 文件不存在时返回合理的默认值
-- [ ] `ensure_project_layout()` 创建 `worldbook/` 目录
-- [ ] 现有 `tests/test_memory_store.py` 全部通过
+- [x] `load_worldbook_source()` / `save_worldbook_source()` round trip
+- [x] `load_worldbook_structured()` / `save_worldbook_structured()` round trip
+- [x] 文件不存在时返回合理的默认值
+- [x] `ensure_project_layout()` 创建 `worldbook/` 目录
+- [x] 现有 `tests/test_memory_store.py` 全部通过
+
+**验收结果（2026-06-19）**：
+
+- `python -m unittest tests.test_worldbook_store -v` ✅（6 tests）
+- `python -m unittest tests.test_memory_store -v` ✅（102 tests）
 
 **验收命令（建议）**：
 

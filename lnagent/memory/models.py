@@ -171,6 +171,109 @@ class WorldCanon:
 
 
 @dataclass
+class WorldbookScope:
+    scope_type: str
+    scope_id: str
+    summary: str = ""
+    rules: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scope_type": self.scope_type,
+            "scope_id": self.scope_id,
+            "summary": self.summary,
+            "rules": self.rules,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WorldbookScope:
+        rules = data.get("rules", [])
+        scope_type = str(data.get("scope_type", "")).strip()
+        if scope_type not in {"faction", "location"}:
+            scope_type = "location"
+        return cls(
+            scope_type=scope_type,
+            scope_id=str(data.get("scope_id", "")),
+            summary=str(data.get("summary", "")),
+            rules=[str(rule) for rule in rules] if isinstance(rules, list) else [],
+        )
+
+
+@dataclass
+class WorldbookGlossaryEntry:
+    term: str
+    definition: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "term": self.term,
+            "definition": self.definition,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WorldbookGlossaryEntry:
+        return cls(
+            term=str(data.get("term", "")),
+            definition=str(data.get("definition", "")),
+        )
+
+
+@dataclass
+class WorldbookStructured:
+    schema_version: int = 1
+    overview: str = ""
+    global_rules: list[str] = field(default_factory=list)
+    scopes: list[WorldbookScope] = field(default_factory=list)
+    glossary: list[WorldbookGlossaryEntry] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "overview": self.overview,
+            "global_rules": self.global_rules,
+            "scopes": [scope.to_dict() for scope in self.scopes],
+            "glossary": [entry.to_dict() for entry in self.glossary],
+            "open_questions": self.open_questions,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WorldbookStructured:
+        raw_scopes = data.get("scopes", [])
+        raw_glossary = data.get("glossary", [])
+        global_rules = data.get("global_rules", [])
+        open_questions = data.get("open_questions", [])
+        return cls(
+            schema_version=int(data.get("schema_version", 1)),
+            overview=str(data.get("overview", "")),
+            global_rules=(
+                [str(rule) for rule in global_rules]
+                if isinstance(global_rules, list)
+                else []
+            ),
+            scopes=[
+                WorldbookScope.from_dict(scope)
+                for scope in raw_scopes
+                if isinstance(scope, dict)
+            ],
+            glossary=[
+                WorldbookGlossaryEntry.from_dict(entry)
+                for entry in raw_glossary
+                if isinstance(entry, dict)
+            ],
+            open_questions=(
+                [str(question) for question in open_questions]
+                if isinstance(open_questions, list)
+                else []
+            ),
+        )
+
+    @classmethod
+    def empty(cls) -> WorldbookStructured:
+        return cls()
+
+
+@dataclass
 class NovelMeta:
     title: str
     style: str

@@ -16,6 +16,7 @@ from lnagent.memory.models import (
     ProjectConfig,
     SceneSession,
     SceneSynopsisEntry,
+    WorldbookStructured,
     extract_tail,
     previous_scene_id,
 )
@@ -32,6 +33,9 @@ class JsonMemoryStore:
         self._session_path = project_dir / "session.json"
         self._canon_path = project_dir / "memory" / "canon.json"
         self._synopsis_path = project_dir / "memory" / "synopsis.json"
+        self._worldbook_root = project_dir / "worldbook"
+        self._worldbook_source_path = self._worldbook_root / "source.md"
+        self._worldbook_structured_path = self._worldbook_root / "structured.json"
         self._manuscript_path = project_dir / "manuscript" / f"{DEFAULT_SCENE_ID}.md"
 
     @property
@@ -45,6 +49,7 @@ class JsonMemoryStore:
         self._project_dir.mkdir(parents=True, exist_ok=True)
         (self._project_dir / "memory").mkdir(parents=True, exist_ok=True)
         (self._project_dir / "manuscript").mkdir(parents=True, exist_ok=True)
+        self._worldbook_root.mkdir(parents=True, exist_ok=True)
         self._discussion_root().mkdir(parents=True, exist_ok=True)
 
         if not self._canon_path.is_file():
@@ -115,6 +120,24 @@ class JsonMemoryStore:
 
     def save_synopsis(self, synopsis: ColdSynopsis) -> None:
         self._write_json(self._synopsis_path, synopsis.to_dict())
+
+    def load_worldbook_source(self) -> str:
+        if not self._worldbook_source_path.is_file():
+            return ""
+        return self._worldbook_source_path.read_text(encoding="utf-8")
+
+    def save_worldbook_source(self, source: str) -> None:
+        self._worldbook_source_path.parent.mkdir(parents=True, exist_ok=True)
+        self._worldbook_source_path.write_text(source, encoding="utf-8")
+
+    def load_worldbook_structured(self) -> WorldbookStructured:
+        if not self._worldbook_structured_path.is_file():
+            return WorldbookStructured.empty()
+        data = self._read_json(self._worldbook_structured_path)
+        return WorldbookStructured.from_dict(data)
+
+    def save_worldbook_structured(self, structured: WorldbookStructured) -> None:
+        self._write_json(self._worldbook_structured_path, structured.to_dict())
 
     def read_scene_manuscript(self, scene_id: str) -> str:
         scene_path = self._scene_manuscript_path(scene_id)

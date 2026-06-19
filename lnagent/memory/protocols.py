@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from lnagent.memory.models import ColdSynopsis, HotCanon, NovelMeta, SceneSession
+from lnagent.memory.models import (
+    ColdSynopsis,
+    HotCanon,
+    NovelMeta,
+    SceneSession,
+    WorldbookStructured,
+)
 
 
 class MemoryStore(Protocol):
@@ -29,6 +35,14 @@ class MemoryStore(Protocol):
     def load_synopsis(self) -> ColdSynopsis: ...
 
     def save_synopsis(self, synopsis: ColdSynopsis) -> None: ...
+
+    def load_worldbook_source(self) -> str: ...
+
+    def save_worldbook_source(self, source: str) -> None: ...
+
+    def load_worldbook_structured(self) -> WorldbookStructured: ...
+
+    def save_worldbook_structured(self, structured: WorldbookStructured) -> None: ...
 
     def read_scene_manuscript(self, scene_id: str) -> str: ...
 
