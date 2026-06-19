@@ -195,6 +195,7 @@
 - 若 `structured.json` 不存在或为空，apply 应报错而非静默清空 `meta.world`
 - apply 不影响 `session.json`、`canon.json`、`synopsis.json`、`config.json`
 - 第一版不需要 undo apply
+- 已知 follow-up：当前 `NovelMeta` / `world_rules` 仍带有旧数组入口兼容包袱；该问题暂不在 WK2 内修补，后续随 meta/world 结构化改造一并处理
 
 **建议文件**：
 
@@ -261,21 +262,27 @@
 
 **任务清单**：
 
-- [ ] WK3.1 在 `AppService` 新增 worldbook 服务方法
-- [ ] WK3.2 在 Web 路由中新增 worldbook API 端点
-- [ ] WK3.3 编写 worldbook API 集成测试
+- [x] WK3.1 在 `AppService` 新增 worldbook 服务方法
+- [x] WK3.2 在 Web 路由中新增 worldbook API 端点
+- [x] WK3.3 编写 worldbook API 集成测试
 
 **验收**：
 
-- [ ] `GET /api/projects/{id}/worldbook` 返回正确 status
-- [ ] `PUT .../worldbook/source` 写盘成功
-- [ ] `POST .../worldbook/extract` 返回 structured 预览
-- [ ] `POST .../worldbook/apply` 返回更新后的 meta，且 meta.world 已同步
-- [ ] 对无 source 的项目 extract 报错
-- [ ] 对无 structured 的项目 apply 报错
+- [x] `GET /api/projects/{id}/worldbook` 返回正确 status
+- [x] `PUT .../worldbook/source` 写盘成功
+- [x] `POST .../worldbook/extract` 返回 structured 预览
+- [x] `POST .../worldbook/apply` 返回更新后的 meta，且 meta.world 已同步
+- [x] 对无 source 的项目 extract 报错
+- [x] 对无 structured 的项目 apply 报错
+
+**已完成验证**：
+
+- `python -m unittest tests.test_worldbook_web_api -v` ✅（6 tests）
+- `python -m unittest tests.test_worldbook_web_api tests.test_worldbook_apply tests.test_web_app -v` ✅（31 tests）
 
 **验收命令（建议）**：
 
+- `python -m unittest tests.test_worldbook_web_api -v`
 - `python -m unittest tests.test_web_app -v`
 
 ---

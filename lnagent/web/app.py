@@ -174,6 +174,16 @@ class SimpleWebApp:
             return self._json_response(self._service.get_meta(project_id))
         if method == "PUT" and suffix == "/meta":
             return self._json_response(self._service.update_meta(project_id, payload))
+        if method == "GET" and suffix == "/worldbook":
+            return self._json_response(self._service.get_worldbook(project_id))
+        if method == "PUT" and suffix == "/worldbook/source":
+            return self._json_response(
+                self._service.save_worldbook_source(project_id, str(payload.get("source", "")))
+            )
+        if method == "POST" and suffix == "/worldbook/extract":
+            return self._json_response(self._service.extract_worldbook(project_id))
+        if method == "POST" and suffix == "/worldbook/apply":
+            return self._json_response(self._service.apply_worldbook(project_id))
         if method == "GET" and suffix == "/canon":
             return self._json_response(self._service.get_canon(project_id))
         if method == "GET" and suffix == "/synopsis":

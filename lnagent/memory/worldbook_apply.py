@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from lnagent.memory.models import NovelMeta, ScopedWorldRules, WorldCanon, WorldbookStructured
 from lnagent.memory.protocols import MemoryStore
 
@@ -17,7 +19,7 @@ def apply_worldbook_to_meta(store: MemoryStore) -> NovelMeta:
         raise WorldbookApplyError("structured worldbook 不存在或没有可投影的世界规则")
 
     meta = store.load_meta()
-    meta.world = _world_canon_from_structured(structured)
+    meta.world = world_canon_from_structured(structured)
     store.save_meta(meta)
     return meta
 
@@ -28,7 +30,7 @@ def _has_projectable_world_content(structured: WorldbookStructured) -> bool:
     return any(scope.rules for scope in structured.scopes)
 
 
-def _world_canon_from_structured(structured: WorldbookStructured) -> WorldCanon:
+def world_canon_from_structured(structured: WorldbookStructured) -> WorldCanon:
     return WorldCanon(
         rules=list(structured.global_rules),
         scoped=[
@@ -41,3 +43,9 @@ def _world_canon_from_structured(structured: WorldbookStructured) -> WorldCanon:
             if scope.rules
         ],
     )
+
+
+def structured_has_projectable_content(structured: Any) -> bool:
+    if getattr(structured, "global_rules", None):
+        return True
+    return any(getattr(scope, "rules", None) for scope in getattr(structured, "scopes", []))

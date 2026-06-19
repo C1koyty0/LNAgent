@@ -15,9 +15,15 @@ from lnagent.llm import create_chat_model
 from lnagent.memory.canon_extractor import CanonExtractor
 from lnagent.memory.cold_archive import ColdArchiveExtractor, ColdProposal
 from lnagent.memory.context_budget import format_budget_notice
-from lnagent.memory.models import DiscussionBrief, NovelMeta
+from lnagent.memory.models import DiscussionBrief, NovelMeta, WorldbookStructured
 from lnagent.memory.scene_switch import SceneSwitchAdvisor
 from lnagent.memory.store import JsonMemoryStore
+from lnagent.memory.worldbook_apply import (
+    apply_worldbook_to_meta,
+    structured_has_projectable_content,
+    world_canon_from_structured,
+)
+from lnagent.memory.worldbook_extractor import WorldbookExtractor
 from lnagent.cli.config import (
     ConfigCommandError,
     flatten_project_config,
@@ -102,6 +108,72 @@ class AppService:
 
     def get_meta(self, project_id: str) -> dict:
         return self.open_project(project_id).meta.to_dict()
+
+    def get_worldbook(self, project_id: str) -> dict:
+        handle = self.open_project(project_id)
+        source = handle.store.load_worldbook_source()
+        structured = handle.store.load_worldbook_structured()
+        return {
+            "source": source,
+            "structured": structured.to_dict(),
+            "status": self._worldbook_status(handle.meta, source, structured),
+        }
+
+    def save_worldbook_source(self, project_id: str, source: str) -> dict:
+        handle = self.open_project(project_id)
+        normalized_source = str(source)
+        handle.store.save_worldbook_source(normalized_source)
+        structured = handle.store.load_worldbook_structured()
+        return {
+            "source": normalized_source,
+            "structured": structured.to_dict(),
+            "status": self._worldbook_status(handle.meta, normalized_source, structured),
+        }
+
+    def extract_worldbook(self, project_id: str) -> dict:
+        handle = self.open_project(project_id)
+        source = handle.store.load_worldbook_source()
+        if not source.strip():
+            raise ValueError("worldbook source 不能为空")
+
+        settings = self._settings_factory()
+        if settings is None:
+            raise ValueError("未提供运行设置")
+        runtime_settings = settings.with_project(project_id)
+        model: Any = (
+            self._model_factory(project_id)
+            if self._model_factory is not None
+            else create_chat_model(runtime_settings)
+        )
+        structured = WorldbookExtractor(model).extract(source)
+        handle.store.save_worldbook_structured(structured)
+        return {
+            "source": source,
+            "structured": structured.to_dict(),
+            "status": self._worldbook_status(handle.meta, source, structured),
+        }
+
+    def apply_worldbook(self, project_id: str) -> dict:
+        handle = self.open_project(project_id)
+        updated_meta = apply_worldbook_to_meta(handle.store)
+        handle.session.update_meta(updated_meta)
+        self._registry.replace(
+            handle.project_id,
+            SessionHandle(
+                project_id=handle.project_id,
+                store=handle.store,
+                meta=updated_meta,
+                session=handle.session,
+            ),
+        )
+        source = handle.store.load_worldbook_source()
+        structured = handle.store.load_worldbook_structured()
+        return {
+            "source": source,
+            "structured": structured.to_dict(),
+            "status": self._worldbook_status(updated_meta, source, structured),
+            "meta": updated_meta.to_dict(),
+        }
 
     def list_templates(self) -> list[dict[str, Any]]:
         return JsonTemplateStore(self._projects_dir).list_templates()
@@ -578,3 +650,17 @@ class AppService:
             if text:
                 normalized.append(text)
         return normalized
+
+    @staticmethod
+    def _worldbook_status(
+        meta: NovelMeta,
+        source: str,
+        structured: WorldbookStructured,
+    ) -> str:
+        if not source.strip():
+            return "no_worldbook"
+        if not structured_has_projectable_content(structured):
+            return "source_only"
+        if meta.world.to_dict() == world_canon_from_structured(structured).to_dict():
+            return "applied"
+        return "preview_ready"
