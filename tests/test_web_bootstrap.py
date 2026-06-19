@@ -6,12 +6,16 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from typing import cast
+
+from langchain_core.language_models import BaseChatModel
 
 from lnagent.bootstrap import bootstrap_project_runtime
 from lnagent.config import Settings
 from lnagent.memory.models import NovelMeta, SceneSession
 from lnagent.memory.store import JsonMemoryStore
 from lnagent.project_index import list_projects
+from lnagent.session import NovelSession
 
 
 class BootstrapRuntimeTest(unittest.TestCase):
@@ -73,6 +77,54 @@ class BootstrapRuntimeTest(unittest.TestCase):
             self.assertIs(seen["store"], runtime.store)
             self.assertIs(seen["meta"], runtime.meta)
             self.assertIs(seen["model"], runtime.model)
+
+    def test_bootstrap_project_runtime_accepts_meta_without_world_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            projects_dir = root / "projects"
+            meta_path = root / "meta.json"
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "title": "极简项目",
+                        "style": "轻小说",
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            settings = Settings(
+                api_key="test-key",
+                model="fake-model",
+                projects_dir=projects_dir,
+            )
+            fake_model = cast(BaseChatModel, object())
+            fake_session = cast(NovelSession, object())
+
+            def fake_model_factory(_settings: Settings) -> BaseChatModel:
+                return fake_model
+
+            def fake_session_factory(
+                store: JsonMemoryStore,
+                model: BaseChatModel,
+                meta: NovelMeta,
+            ) -> NovelSession:
+                del store, model, meta
+                return fake_session
+
+            runtime = bootstrap_project_runtime(
+                "minimal",
+                meta_path=meta_path,
+                settings=settings,
+                model_factory=fake_model_factory,
+                session_factory=fake_session_factory,
+            )
+
+            self.assertEqual(runtime.meta.title, "极简项目")
+            self.assertEqual(runtime.meta.style, "轻小说")
+            self.assertEqual(runtime.meta.world.rules, [])
+            self.assertEqual(runtime.store.load_meta().world.rules, [])
+            self.assertFalse((projects_dir / "minimal" / "worldbook" / "source.md").exists())
 
 
 class ProjectIndexTest(unittest.TestCase):

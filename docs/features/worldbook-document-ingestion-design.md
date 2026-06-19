@@ -1,6 +1,6 @@
 # 世界观文档录入与结构化设计
 
-> **状态**：设计已确认，WK0–WK5 已实现；WK6 收口中  
+> **状态**：设计已确认，WK0–WK6 已实现  
 > **范围**：LNAgent Web 优先的世界观录入、结构化与按需注入路径  
 > **目标**：允许作者以“完整世界观文档”作为录入入口，经 LLM 提炼为结构化 worldbook，再按 scene / scope 选择性注入 writing prompt，同时保持 `meta` 与 Hot Canon 的职责边界清晰。
 
@@ -624,3 +624,4 @@ LLM 在这里的职责应是：
 | 2026-06-19 | 用户 review 后回写为已确认决策：标题从“草案”改为“设计已确认”、4.4 节补充实现取向、待决问题 W1/W2/W4/W6 从“建议倾向”改为“本轮结论”、W6 明确不保留旧入口、新增 W7 回 `open-questions.md` |
 | 2026-06-19 | 拆出 WK0–WK6 实施计划文档 `worldbook-implementation-plan.md`，同步更新 README.md 索引 |
 | 2026-06-19 | WK5 已实现：移除创建阶段旧 `world_rules` 入口，Web 创建表单改为可选 `worldbook_source`，CLI 世界规则采集改为可跳过，并同步 README / 计划状态 |
+| 2026-06-19 | WK6 已实现：补齐空 world 新路径、bootstrap 最小 meta 路径、template store 隔离 `worldbook_source` 的收口测试，并同步 README / 设计 / 实施计划状态 |

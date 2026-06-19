@@ -15,5 +15,5 @@
 | [discussion-writing-dual-track-implementation-plan.md](./discussion-writing-dual-track-implementation-plan.md) | **讨论 / 写作双轨实施计划**（D0–D7，可跨 session 追踪） | D0–D7 已实现 |
 | [web-brief-workspace-plan.md](./web-brief-workspace-plan.md) | **Web Brief 工作空间**（B0 schema、B1 只读面板、B2 人工编辑） | B0–B2 已实现 |
 | [style-template-implementation-plan.md](./style-template-implementation-plan.md) | **文风与叙事模板**（S0 meta 编辑、S1 模板存储、S2 预设选择） | S0–S2 已实现 |
-| [worldbook-document-ingestion-design.md](./worldbook-document-ingestion-design.md) | **世界观文档录入与结构化设计**（document-first、LLM 提炼、按 scope 注入） | 设计已确认，WK0–WK5 已实现；WK6 收口中 |
-| [worldbook-implementation-plan.md](./worldbook-implementation-plan.md) | **世界观文档录入与结构化实施计划**（WK0–WK6，可跨 session 追踪） | WK0–WK5 已实现；WK6 待完成 |
+| [worldbook-document-ingestion-design.md](./worldbook-document-ingestion-design.md) | **世界观文档录入与结构化设计**（document-first、LLM 提炼、按 scope 注入） | 设计已确认，WK0–WK6 已实现 |
+| [worldbook-implementation-plan.md](./worldbook-implementation-plan.md) | **世界观文档录入与结构化实施计划**（WK0–WK6，可跨 session 追踪） | WK0–WK6 已实现 |

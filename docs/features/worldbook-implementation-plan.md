@@ -434,22 +434,27 @@
 
 **任务清单**：
 
-- [ ] WK6.1 修复因放宽 world 约束导致的测试失败
-- [ ] WK6.2 补全 worldbook 各路径的集成测试
-- [ ] WK6.3 更新 feature docs 索引与设计文档状态
+- [x] WK6.1 修复因放宽 world 约束导致的测试失败
+- [x] WK6.2 补全 worldbook 各路径的集成测试
+- [x] WK6.3 更新 feature docs 索引与设计文档状态
 
 **验收**：
 
-- [ ] 全量 `python -m unittest` 通过
-- [ ] `py_compile` 全量通过
-- [ ] `node --check` 全量通过
-- [ ] README.md 中 worldbook 条目状态更新
+- [x] 全量 `python -m unittest` 通过
+- [x] `py_compile` 全量通过
+- [x] `node --check` 全量通过
+- [x] README.md 中 worldbook 条目状态更新
 
 **验收命令（建议）**：
 
 - `python -m unittest -v`
-- `python -m py_compile lnagent/memory/worldbook_extractor.py lnagent/memory/worldbook_apply.py lnagent/app_service.py`
-- `node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js && node --check lnagent/web/static/home.js`
+- `python -m py_compile lnagent/memory/worldbook_extractor.py lnagent/memory/worldbook_apply.py lnagent/app_service.py lnagent/project.py lnagent/web/app.py lnagent/bootstrap.py lnagent/template_store.py lnagent/memory/models.py`
+- `node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js && node --check lnagent/web/static/home.js && node --check lnagent/web/static/common.js`
+
+**本阶段实际验证**：
+
+- [x] `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_create_project_without_worldbook_source_keeps_worldbook_empty tests.test_web_bootstrap.BootstrapRuntimeTest.test_bootstrap_project_runtime_accepts_meta_without_world_rules tests.test_template_store.TemplateStoreTest.test_template_store_never_writes_worldbook_source -v`
+- [x] `python -m unittest -v && python -m py_compile lnagent/memory/worldbook_extractor.py lnagent/memory/worldbook_apply.py lnagent/app_service.py lnagent/project.py lnagent/web/app.py lnagent/bootstrap.py lnagent/template_store.py lnagent/memory/models.py && node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js && node --check lnagent/web/static/home.js && node --check lnagent/web/static/common.js`
 
 ---
 

@@ -737,6 +737,35 @@ class WebAppIntegrationTest(unittest.TestCase):
             list_payload = list_response.get_json()
             self.assertEqual([item["project_id"] for item in list_payload["projects"]], ["new-book"])
 
+    def test_create_project_without_worldbook_source_keeps_worldbook_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            app = _build_app(Path(tmp), create_demo=False)
+            client = app.test_client()
+
+            create_response = client.post(
+                "/api/projects",
+                json={
+                    "project_id": "plain-book",
+                    "meta": {
+                        "title": "空世界新书",
+                        "style": "轻小说",
+                    },
+                },
+            )
+            self.assertEqual(create_response.status_code, 201)
+            payload = create_response.get_json()
+            self.assertEqual(payload["meta"]["world"]["rules"], [])
+
+            project_root = Path(tmp) / "projects" / "plain-book"
+            self.assertTrue((project_root / "meta.json").is_file())
+            self.assertFalse((project_root / "worldbook" / "source.md").exists())
+
+            worldbook_response = client.get("/api/projects/plain-book/worldbook")
+            self.assertEqual(worldbook_response.status_code, 200)
+            worldbook_payload = worldbook_response.get_json()
+            self.assertEqual(worldbook_payload["status"], "no_worldbook")
+            self.assertEqual(worldbook_payload["source"], "")
+
     def test_template_api_save_list_and_delete_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app = _build_app(Path(tmp))

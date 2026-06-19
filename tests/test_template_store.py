@@ -89,6 +89,27 @@ class TemplateStoreTest(unittest.TestCase):
             store.delete_template("legacy")
             self.assertEqual(store.list_templates(), [])
 
+    def test_template_store_never_writes_worldbook_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonTemplateStore(Path(tmp) / "projects")
+
+            saved = store.save_template(
+                "无世界观模板",
+                {
+                    "title": "测试书",
+                    "style": "轻小说",
+                    "worldbook_source": "# 不应进模板\n\n世界观文档",
+                },
+            )
+
+            template_path = Path(tmp) / "projects" / "_templates" / "无世界观模板.json"
+            raw = json.loads(template_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(saved["name"], "无世界观模板")
+            self.assertNotIn("worldbook_source", saved)
+            self.assertNotIn("worldbook_source", raw)
+            self.assertFalse((Path(tmp) / "projects" / "_templates" / "worldbook").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
