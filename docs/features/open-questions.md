@@ -73,6 +73,7 @@
 | **R4** | 🟡 | **CLI 何时正式退场 / 仅保留维护模式** | 当前方向已明确为 Web 优先；CLI 暂保持可用但不再扩展双轨交互，后续需决定何时将其降为兼容入口或维护模式。 |
 | **R5** | 🟡 | **Discussion Brief 何时从 `list[str]` 升级到对象数组？** | 当前已决议：B0–B2 均保持 `todo_items / constraints / open_questions` 为字符串数组，B3 仅记录升级出口、不启动实现。只有当 item 级状态、优先级、来源、注释、排序、冲突合并或历史视图成为真实需求时，才进入对象数组设计与迁移讨论。 |
 | **R6** | 🟡 | **Brief 是否需要 diff / history 视图？** | 当前不做。只有当自动 refresh 与人工编辑并存，且用户需要区分“机器刷新改动”与“人工修订改动”时，才值得进入实现范围。 |
+| **W7** | 🟢 | **是否保留“每行一条世界规则”的轻量入口？** | 已决议：不保留。世界观录入切换为 document-first；`worldbook apply` 覆盖 `meta.world`，第一版 `source` 为单文档 `worldbook/source.md`，`overview` 仅作可选短摘要注入，不替代 `global_rules`。见 [worldbook-document-ingestion-design.md](./worldbook-document-ingestion-design.md)。 |
 
 ---
 
