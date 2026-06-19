@@ -71,7 +71,7 @@
 - 给定 `project_id`，可以定位 `worldbook/` 数据
 - source 与 structured 可独立读写
 - 现有 `session.json`、`canon.json`、`synopsis.json` 不受影响
-- 现有测试不受影响（worldbook 目录仅在显式操作后创建，不影响旧项目）
+- 现有测试不受影响（仅预创建空 `worldbook/` 目录，不自动生成 `source.md` / `structured.json`）
 
 **当前已确认的 WK0 约束**：
 
