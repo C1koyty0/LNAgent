@@ -289,7 +289,12 @@ class NovelMeta:
     tone: str = ""
 
     def __post_init__(self, world_rules: list[str] | None) -> None:
-        if world_rules and not self.world.rules and not self.world.scoped:
+        if (
+            isinstance(world_rules, list)
+            and world_rules
+            and not self.world.rules
+            and not self.world.scoped
+        ):
             self.world = WorldCanon(rules=[str(rule) for rule in world_rules])
 
     @property

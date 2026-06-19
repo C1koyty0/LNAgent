@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
     target_audience: document.getElementById("project-target-audience"),
     taboos: document.getElementById("project-taboos"),
     narrative_rules: document.getElementById("project-narrative-rules"),
-    world_rules: document.getElementById("project-world-rules"),
+    worldbook_source: document.getElementById("project-worldbook-source"),
   };
 
   const templateState = { items: [] };
@@ -115,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const targetAudience = fields.target_audience.value.trim();
     const taboos = listTextToArray(fields.taboos.value);
     const narrativeRules = listTextToArray(fields.narrative_rules.value);
-    const worldRules = listTextToArray(fields.world_rules.value);
+    const worldbookSource = String(fields.worldbook_source?.value ?? "");
 
     if (!projectId || !title || !style) {
       setStatus(statusEl, "请填写 project_id、书名与文风。", "error");
@@ -137,8 +137,8 @@ document.addEventListener("DOMContentLoaded", () => {
           target_audience: targetAudience,
           taboos,
           narrative_rules: narrativeRules,
-          world_rules: worldRules,
         },
+        worldbook_source: worldbookSource,
       });
       window.location.href = `/projects/${encodeURIComponent(projectId)}`;
     } catch (error) {

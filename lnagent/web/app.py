@@ -141,7 +141,11 @@ class SimpleWebApp:
                 {"projects": [item.__dict__ for item in self._service.list_projects()]}
             )
         if method == "POST" and path == "/api/projects":
-            result = self._service.create_project(payload.get("project_id", ""), payload.get("meta", {}))
+            result = self._service.create_project(
+                payload.get("project_id", ""),
+                payload.get("meta", {}),
+                str(payload.get("worldbook_source", "")),
+            )
             return self._json_response(result, status=201)
         if method == "GET" and path == "/api/templates":
             return self._json_response({"templates": self._service.list_templates()})
@@ -378,7 +382,7 @@ def _page_shell(*, title: str, body: str, scripts: list[str], body_attrs: str = 
         "<meta charset='utf-8'>"
         f"<title>{escape(title)}</title>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        f"<link rel='stylesheet' href='{escape(_static_url("style.css"))}'>"
+        f"<link rel='stylesheet' href='{escape(_static_url('style.css'))}'>"
         "</head>"
         f"<body{body_attrs}>{body}{script_tags}</body>"
         "</html>"
@@ -424,7 +428,7 @@ def _render_home(projects: list[Any]) -> str:
         "<label>目标读者<input id='project-target-audience' type='text' placeholder='例如 青少年'></label>"
         "<label>禁忌（每行一条）<textarea id='project-taboos' placeholder='避免说教&#10;避免机械解释'></textarea></label>"
         "<label>叙事规则（每行一条）<textarea id='project-narrative-rules' placeholder='单章聚焦一个冲突&#10;保留轻快对白'></textarea></label>"
-        "<label>世界规则（每行一条）<textarea id='project-world-rules' placeholder='魔法存在&#10;主角是普通学生'></textarea></label>"
+        "<label>世界观文档（可选，可在项目页补充）<textarea id='project-worldbook-source' rows='8' placeholder='例如：时代背景、势力关系、地点设定、术语说明……'></textarea></label>"
         "<div class='button-row'>"
         "<button id='create-project-button' type='submit' class='primary'>创建并进入</button>"
         "</div>"

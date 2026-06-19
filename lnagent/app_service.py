@@ -76,12 +76,20 @@ class AppService:
     def list_projects(self) -> list[ProjectSummary]:
         return list_projects(self._projects_dir)
 
-    def create_project(self, project_id: str, meta_data: dict) -> dict:
+    def create_project(
+        self,
+        project_id: str,
+        meta_data: dict,
+        worldbook_source: str = "",
+    ) -> dict:
         normalized = project_id.strip()
         if not normalized:
             raise ValueError("project_id 不能为空")
         store = JsonMemoryStore(self._projects_dir / normalized)
         meta = create_project_from_meta_dict(store, meta_data)
+        source = str(worldbook_source)
+        if source.strip():
+            store.save_worldbook_source(source)
         return {
             "project_id": normalized,
             "meta": meta.to_dict(),

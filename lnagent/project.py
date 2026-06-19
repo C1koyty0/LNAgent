@@ -17,16 +17,13 @@ def collect_novel_meta() -> NovelMeta:
     title = _prompt_required("书名")
     style = _prompt_required("文风（如：第一人称、轻松日常）")
 
-    print("世界规则（每行一条，空行结束）：")
+    print("世界规则（每行一条，空行结束；直接回车可跳过）：")
     world_rules: list[str] = []
     while True:
         line = input("  规则: ").strip()
         if not line:
             break
         world_rules.append(line)
-
-    if not world_rules:
-        raise ValueError("至少需要一条世界规则")
 
     return NovelMeta(title=title, world_rules=world_rules, style=style)
 
@@ -107,24 +104,17 @@ def _validate_world_content(data: dict) -> None:
     if isinstance(world, dict):
         rules = world.get("rules", [])
         scoped = world.get("scoped", [])
-        has_rules = isinstance(rules, list) and bool(rules)
-        has_scoped = (
-            isinstance(scoped, list)
-            and any(
-                isinstance(entry, dict) and entry.get("rules")
-                for entry in scoped
-            )
-        )
-        if has_rules or has_scoped:
-            return
-
-    world_rules = data.get("world_rules")
-    if isinstance(world_rules, list) and world_rules:
+        if not isinstance(rules, list):
+            raise ValueError("meta JSON 字段 world.rules 必须是数组")
+        if not isinstance(scoped, list):
+            raise ValueError("meta JSON 字段 world.scoped 必须是数组")
         return
 
-    raise ValueError(
-        "meta JSON 须包含非空 world.rules、world.scoped 或旧版 world_rules"
-    )
+    world_rules = data.get("world_rules")
+    if world_rules is None:
+        return
+    if not isinstance(world_rules, list):
+        raise ValueError("meta JSON 字段 world_rules 必须是数组")
 
 
 def _prompt_required(label: str) -> str:

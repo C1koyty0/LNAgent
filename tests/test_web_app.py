@@ -151,6 +151,9 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn("project-target-audience", home_html)
             self.assertIn("project-taboos", home_html)
             self.assertIn("project-narrative-rules", home_html)
+            self.assertIn("project-worldbook-source", home_html)
+            self.assertIn("世界观文档（可选，可在项目页补充）", home_html)
+            self.assertNotIn("project-world-rules", home_html)
             self.assertIn("/static/style.css?v=", home_html)
 
             project_page = client.get("/projects/demo")
@@ -238,6 +241,9 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertIn(b"project-target-audience", home_js.body)
             self.assertIn(b"project-taboos", home_js.body)
             self.assertIn(b"project-narrative-rules", home_js.body)
+            self.assertIn(b"project-worldbook-source", home_js.body)
+            self.assertIn(b"worldbook_source", home_js.body)
+            self.assertNotIn(b"project-world-rules", home_js.body)
 
             js = client.get("/static/project.js")
             self.assertEqual(js.status_code, 200)
@@ -701,8 +707,8 @@ class WebAppIntegrationTest(unittest.TestCase):
                         "target_audience": "青少年",
                         "taboos": ["避免说教"],
                         "narrative_rules": ["单章聚焦一个冲突"],
-                        "world_rules": ["魔法存在"],
                     },
+                    "worldbook_source": "# 世界观\n\n魔法存在，学院位于浮空岛。\n",
                 },
             )
             self.assertEqual(create_response.status_code, 201)
@@ -717,7 +723,14 @@ class WebAppIntegrationTest(unittest.TestCase):
             self.assertEqual(payload["meta"]["target_audience"], "青少年")
             self.assertEqual(payload["meta"]["taboos"], ["避免说教"])
             self.assertEqual(payload["meta"]["narrative_rules"], ["单章聚焦一个冲突"])
+            self.assertEqual(payload["meta"]["world"]["rules"], [])
             self.assertTrue((Path(tmp) / "projects" / "new-book" / "meta.json").is_file())
+            worldbook_path = Path(tmp) / "projects" / "new-book" / "worldbook" / "source.md"
+            self.assertTrue(worldbook_path.is_file())
+            self.assertEqual(
+                worldbook_path.read_text(encoding="utf-8"),
+                "# 世界观\n\n魔法存在，学院位于浮空岛。\n",
+            )
 
             list_response = client.get("/api/projects")
             self.assertEqual(list_response.status_code, 200)

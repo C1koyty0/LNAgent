@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 import tempfile
 import unittest
 from datetime import date
@@ -42,7 +43,7 @@ from lnagent.memory.prompt import PromptContextBuilder
 from lnagent.memory.scene_switch import SceneSwitchAdvisor
 from lnagent.memory.short_term import ShortTermBuffer, build_prose_from_records
 from lnagent.memory.store import JsonMemoryStore
-from lnagent.project import load_meta_from_file, open_or_create_project
+from lnagent.project import collect_novel_meta, load_meta_from_file, open_or_create_project
 from lnagent.session import NovelSession
 
 
@@ -225,8 +226,22 @@ class ProjectInitTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with self.assertRaisesRegex(ValueError, "world_rules"):
-                load_meta_from_file(meta_path)
+            meta = load_meta_from_file(meta_path)
+
+            self.assertEqual(meta.title, "测试书")
+            self.assertEqual(meta.style, "轻松")
+            self.assertEqual(meta.world.rules, [])
+
+    def test_collect_novel_meta_allows_skipping_world_rules(self) -> None:
+        with patch(
+            "builtins.input",
+            side_effect=["测试书", "轻松日常", ""],
+        ):
+            meta = collect_novel_meta()
+
+        self.assertEqual(meta.title, "测试书")
+        self.assertEqual(meta.style, "轻松日常")
+        self.assertEqual(meta.world.rules, [])
 
     def test_open_or_create_project_uses_meta_file_for_new_project(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

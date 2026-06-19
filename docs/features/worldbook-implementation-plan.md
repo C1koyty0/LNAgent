@@ -370,30 +370,39 @@
 **建议文件**：
 
 - Modify: `lnagent/project.py` — `collect_novel_meta()` 和 `_validate_world_content()` 放宽约束
-- Modify: `lnagent/web/app.py` — `_render_home()` 表单替换
+- Modify: `lnagent/web/app.py` — `_render_home()` 表单替换，并让 create API 接收 `worldbook_source`
 - Modify: `lnagent/web/static/home.js` — 移除 `world_rules` 字段、新增 optional source 字段
-- Modify: `tests/test_web_app.py` — 更新 create project 测试
+- Modify: `lnagent/app_service.py` — 创建项目时保存可选 `worldbook/source.md`
+- Modify: `lnagent/memory/models.py` — 修正 `NovelMeta.__post_init__()` 对空 world 路径的兼容判断
+- Modify: `tests/test_web_app.py` — 更新首页/静态资源/创建项目测试
 - Modify: `tests/test_memory_store.py` — 更新相关测试
 
 **任务清单**：
 
-- [ ] WK5.1 放宽后端 world 必填约束
-- [ ] WK5.2 替换 Web 创建表单中的世界规则输入
-- [ ] WK5.3 改造 CLI 交互式世界规则采集
-- [ ] WK5.4 更新相关测试
+- [x] WK5.1 放宽后端 world 必填约束
+- [x] WK5.2 替换 Web 创建表单中的世界规则输入
+- [x] WK5.3 改造 CLI 交互式世界规则采集
+- [x] WK5.4 更新相关测试
 
 **验收**：
 
-- [ ] 不填世界观也能创建项目
-- [ ] Web 创建表单不再要求“世界规则（每行一条）”
-- [ ] 旧项目（有 `world_rules` 的 `meta.json`）仍能正常加载与写作
-- [ ] 新项目可在项目页粘贴世界观文档并走 worldbook 流程
+- [x] 不填世界观也能创建项目
+- [x] Web 创建表单不再要求“世界规则（每行一条）”
+- [x] 旧项目（有 `world_rules` 的 `meta.json`）仍能正常加载与写作
+- [x] 新项目可在项目页粘贴世界观文档并走 worldbook 流程
 
 **验收命令（建议）**：
 
 - `python -m unittest tests.test_web_app -v`
 - `python -m unittest tests.test_memory_store -v`
 - `python -m unittest tests.test_web_bootstrap -v`
+- `python -m py_compile lnagent/project.py lnagent/app_service.py lnagent/web/app.py lnagent/memory/models.py`
+- `node --check lnagent/web/static/home.js && node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js`
+
+**本阶段实际验证**：
+
+- [x] `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_home_page_and_project_page_render tests.test_web_app.WebAppIntegrationTest.test_static_assets_are_served tests.test_web_app.WebAppIntegrationTest.test_create_project_via_api tests.test_memory_store.ProjectInitTest.test_load_meta_from_file_requires_required_fields tests.test_memory_store.ProjectInitTest.test_collect_novel_meta_allows_skipping_world_rules -v`
+- [x] `python -m unittest tests.test_web_app tests.test_memory_store tests.test_web_bootstrap -v && python -m py_compile lnagent/project.py lnagent/app_service.py lnagent/web/app.py lnagent/memory/models.py && node --check lnagent/web/static/home.js && node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js`
 
 ---
 
