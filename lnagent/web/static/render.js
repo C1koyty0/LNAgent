@@ -597,7 +597,7 @@ function renderWorldbookStatus(status) {
     },
     source_only: {
       label: "已录入未提炼",
-      note: "文档已保存，下一步可提炼结构化 preview。",
+      note: "文档已保存；若刚修改过 source，请重新提炼以生成最新 preview。",
       className: "status-source_only",
       badgeClass: "worldbook-status-badge status-source_only",
     },

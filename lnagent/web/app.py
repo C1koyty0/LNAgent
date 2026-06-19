@@ -576,7 +576,7 @@ def _render_project(project_id: str) -> str:
         "<div class='button-row'>"
         "<button type='button' data-action='worldbook-save-source'>保存文档</button>"
         "<button type='button' data-action='worldbook-extract'>提炼世界观</button>"
-        "<button type='button' class='primary' data-action='worldbook-apply'>应用到 Meta 世界观</button>"
+        "<button id='worldbook-apply-button' type='button' class='primary' data-action='worldbook-apply'>应用到 Meta 世界观</button>"
         "</div>"
         "<p id='worldbook-status-note' class='hint worldbook-status-note'>加载中…</p>"
         "<div id='worldbook-preview' class='summary-block worldbook-preview'>"

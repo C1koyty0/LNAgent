@@ -139,6 +139,10 @@ class JsonMemoryStore:
     def save_worldbook_structured(self, structured: WorldbookStructured) -> None:
         self._write_json(self._worldbook_structured_path, structured.to_dict())
 
+    def clear_worldbook_structured(self) -> None:
+        if self._worldbook_structured_path.is_file():
+            self._worldbook_structured_path.unlink()
+
     def read_scene_manuscript(self, scene_id: str) -> str:
         scene_path = self._scene_manuscript_path(scene_id)
         if not scene_path.is_file():

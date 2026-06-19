@@ -163,6 +163,165 @@ class WorldbookWebApiTest(unittest.TestCase):
             self.assertEqual(get_response.status_code, 200)
             self.assertEqual(get_response.get_json()["status"], "applied")
 
+    def test_save_source_after_extract_clears_preview_and_returns_source_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model = _ReplyModel(
+                [
+                    json.dumps(
+                        {
+                            "overview": "月神王国与白塔学院共存。",
+                            "global_rules": ["魔法需要月光引导"],
+                            "scopes": [],
+                            "glossary": [],
+                            "open_questions": [],
+                        },
+                        ensure_ascii=False,
+                    )
+                ]
+            )
+            app = _build_app(root, model_factory=lambda _project_id: model)
+            client = app.test_client()
+
+            client.put(
+                "/api/projects/demo/worldbook/source",
+                json={"source": "# 世界观\n\n王国依赖月光施法。"},
+            )
+            extract_response = client.post("/api/projects/demo/worldbook/extract")
+            self.assertEqual(extract_response.status_code, 200)
+            self.assertEqual(extract_response.get_json()["status"], "preview_ready")
+
+            update_response = client.put(
+                "/api/projects/demo/worldbook/source",
+                json={"source": "# 世界观\n\n王国改为依赖星光施法。"},
+            )
+
+            self.assertEqual(update_response.status_code, 200)
+            self.assertEqual(
+                update_response.get_json(),
+                {
+                    "source": "# 世界观\n\n王国改为依赖星光施法。",
+                    "structured": {
+                        "schema_version": 1,
+                        "overview": "",
+                        "global_rules": [],
+                        "scopes": [],
+                        "glossary": [],
+                        "open_questions": [],
+                    },
+                    "status": "source_only",
+                },
+            )
+            self.assertFalse(
+                (root / "projects" / "demo" / "worldbook" / "structured.json").exists()
+            )
+
+            get_response = client.get("/api/projects/demo/worldbook")
+            self.assertEqual(get_response.status_code, 200)
+            self.assertEqual(get_response.get_json()["status"], "source_only")
+            self.assertEqual(get_response.get_json()["structured"]["global_rules"], [])
+
+    def test_apply_worldbook_rejects_old_preview_after_source_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model = _ReplyModel(
+                [
+                    json.dumps(
+                        {
+                            "overview": "月神王国与白塔学院共存。",
+                            "global_rules": ["魔法需要月光引导"],
+                            "scopes": [],
+                            "glossary": [],
+                            "open_questions": [],
+                        },
+                        ensure_ascii=False,
+                    )
+                ]
+            )
+            app = _build_app(root, model_factory=lambda _project_id: model)
+            client = app.test_client()
+
+            client.put(
+                "/api/projects/demo/worldbook/source",
+                json={"source": "# 世界观\n\n王国依赖月光施法。"},
+            )
+            client.post("/api/projects/demo/worldbook/extract")
+
+            apply_response = client.post("/api/projects/demo/worldbook/apply")
+            self.assertEqual(apply_response.status_code, 200)
+            self.assertEqual(apply_response.get_json()["status"], "applied")
+
+            update_response = client.put(
+                "/api/projects/demo/worldbook/source",
+                json={"source": "# 世界观\n\n王国改为依赖星光施法。"},
+            )
+            self.assertEqual(update_response.status_code, 200)
+            self.assertEqual(update_response.get_json()["status"], "source_only")
+
+            stale_apply_response = client.post("/api/projects/demo/worldbook/apply")
+
+            self.assertEqual(stale_apply_response.status_code, 400)
+            self.assertIn("structured worldbook", stale_apply_response.get_json()["error"])
+            self.assertEqual(client.get("/api/projects/demo/worldbook").get_json()["status"], "source_only")
+
+    def test_reextract_after_source_change_restores_preview_ready_and_can_apply_again(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            model = _ReplyModel(
+                [
+                    json.dumps(
+                        {
+                            "overview": "月神王国与白塔学院共存。",
+                            "global_rules": ["魔法需要月光引导"],
+                            "scopes": [],
+                            "glossary": [],
+                            "open_questions": [],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    json.dumps(
+                        {
+                            "overview": "月神王国改为依赖星光施法。",
+                            "global_rules": ["魔法需要星光引导"],
+                            "scopes": [],
+                            "glossary": [],
+                            "open_questions": [],
+                        },
+                        ensure_ascii=False,
+                    ),
+                ]
+            )
+            app = _build_app(root, model_factory=lambda _project_id: model)
+            client = app.test_client()
+
+            client.put(
+                "/api/projects/demo/worldbook/source",
+                json={"source": "# 世界观\n\n王国依赖月光施法。"},
+            )
+            first_extract = client.post("/api/projects/demo/worldbook/extract")
+            self.assertEqual(first_extract.status_code, 200)
+            self.assertEqual(first_extract.get_json()["status"], "preview_ready")
+
+            first_apply = client.post("/api/projects/demo/worldbook/apply")
+            self.assertEqual(first_apply.status_code, 200)
+            self.assertEqual(first_apply.get_json()["status"], "applied")
+
+            client.put(
+                "/api/projects/demo/worldbook/source",
+                json={"source": "# 世界观\n\n王国改为依赖星光施法。"},
+            )
+
+            second_extract = client.post("/api/projects/demo/worldbook/extract")
+            self.assertEqual(second_extract.status_code, 200)
+            self.assertEqual(second_extract.get_json()["status"], "preview_ready")
+            self.assertEqual(second_extract.get_json()["structured"]["global_rules"], ["魔法需要星光引导"])
+
+            second_apply = client.post("/api/projects/demo/worldbook/apply")
+            self.assertEqual(second_apply.status_code, 200)
+            self.assertEqual(second_apply.get_json()["status"], "applied")
+            self.assertEqual(second_apply.get_json()["meta"]["world"]["rules"], ["魔法需要星光引导"])
+            self.assertEqual(client.get("/api/projects/demo/worldbook").get_json()["status"], "applied")
+
     def test_extract_worldbook_rejects_empty_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             app = _build_app(Path(tmp))

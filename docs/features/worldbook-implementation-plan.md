@@ -458,8 +458,83 @@
 
 ---
 
+## Phase WB2.1：source 变更后的 preview 清理与 apply 保护
+
+**目标**：在 worldbook 工作台中补齐“source 改了以后怎么办”的产品语义：旧 preview 可以移除，不再继续展示；同时禁止对 source 已变更后的旧结果执行 apply。
+
+**做什么**：
+
+- 在 `save_worldbook_source()` 链路中明确“source 变更会清理旧 preview”的副作用
+- 补齐 worldbook 状态机，确保 source 变更后不再返回 `applied`
+- 对 source-changed / stale 场景禁止 apply
+- 同步更新 Web 端 badge / note / 按钮行为
+- 在阶段完成后，回到已记录的 follow-up，讨论 `NovelMeta` / `world_rules` 旧兼容入口如何收口
+
+**预期效果**：
+
+- 作者修改 source 后，页面不会继续显示旧 preview
+- 作者修改 source 后，状态不会误报为 `applied`
+- 只有重新 extract 后，用户才能再次 review / apply
+- worldbook 工作台的状态语义对作者保持可信
+
+**当前已确认的 WB2.1 约束**：
+
+- 旧 preview **可以移除**，不要求保留做比较
+- source 变更后 **禁止 apply**
+- 本阶段直接回落到 `source_only`，不新增 `preview_stale`
+- 第一版不做 preview history / diff
+- 该阶段完成后，不直接继续扩 glossary / RAG；先讨论之前保留的 todo：`NovelMeta` / `world_rules` 旧数组入口兼容包袱的实现方案
+
+**建议文件**：
+
+- Modify: `lnagent/memory/models.py` — 如需要，补最小 metadata / digest 字段
+- Modify: `lnagent/memory/store.py` — source 保存时清理 structured / preview
+- Modify: `lnagent/app_service.py` — source 更新、副作用、状态机、apply 拒绝逻辑
+- Modify: `lnagent/web/static/render.js` — source-changed / stale 的状态文案
+- Modify: `lnagent/web/static/project.js` — apply 按钮可用性与刷新逻辑
+- Modify: `tests/test_worldbook_web_api.py`
+- Modify: `tests/test_web_app.py`
+- Modify: `docs/features/README.md`
+- Modify: `docs/features/worldbook-document-ingestion-design.md`
+
+**任务清单**：
+
+- [x] WB2.1.1 先补 source 变更后不再保留旧 preview 的失败测试
+- [x] WB2.1.2 先补 source 变更后禁止 apply 的失败测试
+- [x] WB2.1.3 实现 source 保存时清理 structured / preview
+- [x] WB2.1.4 实现状态机与前端文案/按钮联动
+- [x] WB2.1.5 运行回归并同步文档状态
+
+**验收**：
+
+- [x] extract + apply 后 worldbook 为 `applied`
+- [x] 修改 source 后旧 preview 被移除，不再继续展示
+- [x] 修改 source 后再次 GET 不会返回 `applied`
+- [x] 修改 source 后直接 apply 被拒绝
+- [x] 重新 extract 后回到可 review 状态，再 apply 后恢复 `applied`
+- [x] `tests.test_worldbook_web_api` 与相关 Web 回归通过
+
+**验收命令（建议）**：
+
+- `python -m unittest tests.test_worldbook_web_api -v`
+- `python -m unittest tests.test_web_app -v`
+- `python -m unittest -v`
+
+**本阶段实际验证**：
+
+- [x] `python -m unittest -v tests.test_worldbook_store.WorldbookStoreTest.test_clear_worldbook_structured_removes_existing_preview_file tests.test_worldbook_web_api.WorldbookWebApiTest.test_save_source_after_extract_clears_preview_and_returns_source_only tests.test_worldbook_web_api.WorldbookWebApiTest.test_apply_worldbook_rejects_old_preview_after_source_changes tests.test_web_app.WebAppIntegrationTest.test_static_assets_are_served`
+- [x] `python -m unittest -v tests.test_worldbook_web_api.WorldbookWebApiTest.test_reextract_after_source_change_restores_preview_ready_and_can_apply_again`
+- [x] `python -m unittest tests.test_worldbook_web_api -v`
+- [x] `python -m unittest tests.test_web_app -v`
+- [x] `python -m unittest -v`（195 tests, OK）
+- [x] `python -m py_compile lnagent/app_service.py lnagent/memory/protocols.py lnagent/memory/store.py lnagent/web/app.py && node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js && node --check lnagent/web/static/home.js && node --check lnagent/web/static/common.js`
+
+---
+
 ## 修订记录
 
 | 日期 | 说明 |
 |------|------|
 | 2026-06-19 | 初稿：WK0 存储层、WK1 提炼器、WK2 apply、WK3 API、WK4 前端、WK5 移除旧入口、WK6 测试收口 |
+| 2026-06-19 | 补充 WB2.1：source 变更后清理旧 preview、禁止 apply，并约定本阶段完成后再讨论 `NovelMeta` / `world_rules` 旧兼容入口 todo |
+| 2026-06-19 | WB2.1 完成：source 保存后清理 `structured.json`、状态直接回落 `source_only`、apply 仅允许 `preview_ready`，补齐回归测试与文档状态同步 |

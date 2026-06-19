@@ -131,7 +131,8 @@ class AppService:
         handle = self.open_project(project_id)
         normalized_source = str(source)
         handle.store.save_worldbook_source(normalized_source)
-        structured = handle.store.load_worldbook_structured()
+        handle.store.clear_worldbook_structured()
+        structured = WorldbookStructured.empty()
         return {
             "source": normalized_source,
             "structured": structured.to_dict(),

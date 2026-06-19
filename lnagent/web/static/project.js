@@ -46,6 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const worldbookSourceInput = document.getElementById("worldbook-source");
   const worldbookStatusEl = document.getElementById("worldbook-status");
   const worldbookStatusNoteEl = document.getElementById("worldbook-status-note");
+  const worldbookApplyButton = document.getElementById("worldbook-apply-button");
   const worldbookPreviewOverviewEl = document.getElementById("worldbook-preview-overview");
   const worldbookPreviewGlobalRulesEl = document.getElementById("worldbook-preview-global-rules");
   const worldbookPreviewScopesEl = document.getElementById("worldbook-preview-scopes");
@@ -657,6 +658,17 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus(statusEl, "Worldbook 已应用到 Meta 世界观。", "info");
   }
 
+  function syncWorldbookActionButtons(payload) {
+    if (!worldbookApplyButton) {
+      return;
+    }
+    const canApply = payload?.status === "preview_ready";
+    worldbookApplyButton.disabled = !canApply;
+    worldbookApplyButton.title = canApply
+      ? ""
+      : "只有最新提炼出的 preview 才能应用到 Meta 世界观。";
+  }
+
   async function refreshAll() {
     const [session, meta, canon, synopsis, manuscripts, config, discussion, worldbook] = await Promise.all([
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/session`),
@@ -758,6 +770,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (worldbookStatusNoteEl) {
       worldbookStatusNoteEl.textContent = status.note;
     }
+    syncWorldbookActionButtons(payload);
     const preview = renderWorldbookPreview(payload);
     if (worldbookPreviewOverviewEl) {
       worldbookPreviewOverviewEl.innerHTML = preview.overview;

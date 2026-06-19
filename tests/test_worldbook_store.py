@@ -84,6 +84,16 @@ class WorldbookStoreTest(unittest.TestCase):
             (self.store.project_dir / "worldbook" / "structured.json").is_file()
         )
 
+    def test_clear_worldbook_structured_removes_existing_preview_file(self) -> None:
+        self.store.save_worldbook_structured(
+            WorldbookStructured(global_rules=["魔法需要月光引导"])
+        )
+
+        self.store.clear_worldbook_structured()
+
+        self.assertFalse((self.store.project_dir / "worldbook" / "structured.json").exists())
+        self.assertEqual(self.store.load_worldbook_structured(), WorldbookStructured.empty())
+
 
 if __name__ == "__main__":
     unittest.main()

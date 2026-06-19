@@ -1,6 +1,6 @@
 # 世界观文档录入与结构化设计
 
-> **状态**：设计已确认，WK0–WK6 已实现  
+> **状态**：设计已确认，WK0–WK6 + WB2.1 已实现
 > **范围**：LNAgent Web 优先的世界观录入、结构化与按需注入路径  
 > **目标**：允许作者以“完整世界观文档”作为录入入口，经 LLM 提炼为结构化 worldbook，再按 scene / scope 选择性注入 writing prompt，同时保持 `meta` 与 Hot Canon 的职责边界清晰。
 
@@ -202,6 +202,15 @@ PromptContextBuilder 按 scope 注入
 - 现有 prompt 注入逻辑大多可复用
 - 不需要第一版就让 prompt builder 直接依赖全新 worldbook schema
 - 未来若 `meta` 与 `worldbook` 明显分层，再把 prompt 改为直接消费 `structured.json`
+
+### 5.3 source 变更后的 freshness 语义（WB2.1）
+
+在 `source -> extract -> apply` 闭环之上，WB2.1 进一步明确了 preview 的可信度语义：
+
+- `source.md` 是作者真源；一旦作者保存新 source，旧 structured preview 立即视为失效
+- 第一版直接清理持久化的 `worldbook/structured.json`，状态回落到 `source_only`，不保留 stale preview / diff
+- 只有重新执行 extract 后，状态才会回到 `preview_ready`
+- apply 只允许针对“当前 source 刚提炼出的最新 preview”执行，避免旧 preview 误写入 `meta.world`
 
 ---
 
@@ -625,3 +634,4 @@ LLM 在这里的职责应是：
 | 2026-06-19 | 拆出 WK0–WK6 实施计划文档 `worldbook-implementation-plan.md`，同步更新 README.md 索引 |
 | 2026-06-19 | WK5 已实现：移除创建阶段旧 `world_rules` 入口，Web 创建表单改为可选 `worldbook_source`，CLI 世界规则采集改为可跳过，并同步 README / 计划状态 |
 | 2026-06-19 | WK6 已实现：补齐空 world 新路径、bootstrap 最小 meta 路径、template store 隔离 `worldbook_source` 的收口测试，并同步 README / 设计 / 实施计划状态 |
+| 2026-06-19 | WB2.1 已实现：source 保存后立即清理旧 `structured.json`、状态回落到 `source_only`、apply 仅允许针对最新 extract 结果执行，并同步 README / 设计 / 实施计划状态 |
