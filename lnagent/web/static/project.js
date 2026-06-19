@@ -43,6 +43,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const metaTargetAudienceInput = document.getElementById("meta-target-audience-input");
   const metaTaboosInput = document.getElementById("meta-taboos-input");
   const metaNarrativeRulesInput = document.getElementById("meta-narrative-rules-input");
+  const worldbookSourceInput = document.getElementById("worldbook-source");
+  const worldbookStatusEl = document.getElementById("worldbook-status");
+  const worldbookStatusNoteEl = document.getElementById("worldbook-status-note");
+  const worldbookPreviewOverviewEl = document.getElementById("worldbook-preview-overview");
+  const worldbookPreviewGlobalRulesEl = document.getElementById("worldbook-preview-global-rules");
+  const worldbookPreviewScopesEl = document.getElementById("worldbook-preview-scopes");
+  const worldbookPreviewGlossaryEl = document.getElementById("worldbook-preview-glossary");
+  const worldbookPreviewOpenQuestionsEl = document.getElementById("worldbook-preview-open-questions");
 
   const actionButtons = Array.from(document.querySelectorAll("[data-action]"));
   const modeButtons = Array.from(modeToggle?.querySelectorAll("[data-mode]") || []);
@@ -57,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let synopsisState = null;
   let manuscriptsState = null;
   let configState = null;
+  let worldbookState = null;
 
   actionButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -171,6 +180,12 @@ document.addEventListener("DOMContentLoaded", () => {
             await saveDiscussionBrief();
           } else if (action === "meta-save") {
             await saveMeta();
+          } else if (action === "worldbook-save-source") {
+            await saveWorldbookSource();
+          } else if (action === "worldbook-extract") {
+            await extractWorldbook();
+          } else if (action === "worldbook-apply") {
+            await applyWorldbook();
           }
         } catch (error) {
           setStatus(statusEl, error.message, "error");
@@ -603,8 +618,47 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus(statusEl, "Meta 已保存，后续写作将读取最新叙事配置。", "info");
   }
 
+  async function saveWorldbookSource() {
+    if (!worldbookSourceInput) {
+      throw new Error("worldbook 编辑器未就绪。");
+    }
+    worldbookState = await apiRequest(
+      "PUT",
+      `/api/projects/${encodeURIComponent(projectId)}/worldbook/source`,
+      { source: worldbookSourceInput.value },
+    );
+    renderWorldbook(worldbookState);
+    setStatus(statusEl, "Worldbook 文档已保存。", "info");
+  }
+
+  async function extractWorldbook() {
+    worldbookState = await apiRequest(
+      "POST",
+      `/api/projects/${encodeURIComponent(projectId)}/worldbook/extract`,
+    );
+    renderWorldbook(worldbookState);
+    setStatus(statusEl, "Worldbook 已提炼，可检查 preview 后决定是否应用。", "info");
+  }
+
+  async function applyWorldbook() {
+    worldbookState = await apiRequest(
+      "POST",
+      `/api/projects/${encodeURIComponent(projectId)}/worldbook/apply`,
+    );
+    metaState = worldbookState.meta || metaState;
+    renderWorldbook(worldbookState);
+    if (metaState) {
+      document.getElementById("meta-title").textContent = metaState.title || projectId;
+      document.getElementById("meta-style").textContent = metaState.style || "";
+      document.getElementById("meta-summary").innerHTML = renderMetaSummary(metaState) + renderMetaEditForm(metaState);
+      document.getElementById("meta-json").textContent = formatJson(metaState);
+      populateMetaForm(metaState);
+    }
+    setStatus(statusEl, "Worldbook 已应用到 Meta 世界观。", "info");
+  }
+
   async function refreshAll() {
-    const [session, meta, canon, synopsis, manuscripts, config, discussion] = await Promise.all([
+    const [session, meta, canon, synopsis, manuscripts, config, discussion, worldbook] = await Promise.all([
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/session`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/meta`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/canon`),
@@ -612,6 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/manuscripts`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/config`),
       apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/discussion/get`),
+      apiRequest("GET", `/api/projects/${encodeURIComponent(projectId)}/worldbook`),
     ]);
 
     writingSession = session;
@@ -621,6 +676,7 @@ document.addEventListener("DOMContentLoaded", () => {
     synopsisState = synopsis;
     manuscriptsState = manuscripts;
     configState = config;
+    worldbookState = worldbook;
 
     document.getElementById("meta-title").textContent = meta.title || projectId;
     document.getElementById("meta-style").textContent = meta.style || "";
@@ -647,6 +703,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("synopsis-json").textContent = formatJson(synopsisState);
 
     renderConfigViews(configState);
+    renderWorldbook(worldbookState);
   }
 
   function renderWritingSession(session) {
@@ -685,6 +742,38 @@ document.addEventListener("DOMContentLoaded", () => {
       summary.innerHTML = renderConfigSummary(configPayload);
     }
     populateConfigForm(configPayload);
+  }
+
+  function renderWorldbook(payload) {
+    if (!payload) {
+      return;
+    }
+    if (worldbookSourceInput) {
+      worldbookSourceInput.value = payload.source || "";
+    }
+    const status = renderWorldbookStatus(payload.status);
+    if (worldbookStatusEl) {
+      worldbookStatusEl.innerHTML = `<span class='badge ${escapeHtml(status.badgeClass || `worldbook-status-badge ${status.className}`)}'>${escapeHtml(status.label)}</span>`;
+    }
+    if (worldbookStatusNoteEl) {
+      worldbookStatusNoteEl.textContent = status.note;
+    }
+    const preview = renderWorldbookPreview(payload);
+    if (worldbookPreviewOverviewEl) {
+      worldbookPreviewOverviewEl.innerHTML = preview.overview;
+    }
+    if (worldbookPreviewGlobalRulesEl) {
+      worldbookPreviewGlobalRulesEl.innerHTML = `<summary>全局规则</summary>${preview.globalRules}`;
+    }
+    if (worldbookPreviewScopesEl) {
+      worldbookPreviewScopesEl.innerHTML = `<summary>Scope 规则</summary>${preview.scopes}`;
+    }
+    if (worldbookPreviewGlossaryEl) {
+      worldbookPreviewGlossaryEl.innerHTML = `<summary>术语表</summary>${preview.glossary}`;
+    }
+    if (worldbookPreviewOpenQuestionsEl) {
+      worldbookPreviewOpenQuestionsEl.innerHTML = `<summary>待解问题</summary>${preview.openQuestions}`;
+    }
   }
 
   function renderMessagesInContainer(container, messages, emptyHint) {

@@ -171,6 +171,77 @@ a {
   min-height: 4.5rem;
 }
 
+.worldbook-panel-desc {
+  margin: 0 0 0.75rem;
+}
+
+.worldbook-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.worldbook-status-badge {
+  background: #ebe4d8;
+  color: var(--muted);
+}
+
+.worldbook-status-badge.status-no_worldbook {
+  background: #ebe4d8;
+  color: var(--muted);
+}
+
+.worldbook-status-badge.status-source_only {
+  background: #faf3e4;
+  color: #8c5a15;
+}
+
+.worldbook-status-badge.status-preview_ready {
+  background: #eef4fa;
+  color: #2a4a66;
+}
+
+.worldbook-status-badge.status-applied {
+  background: #e8f0eb;
+  color: var(--accent);
+}
+
+.worldbook-status-note {
+  margin: 0.5rem 0 0.75rem;
+}
+
+.worldbook-preview {
+  gap: 0.75rem;
+}
+
+.worldbook-preview-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.worldbook-preview-section {
+  margin-top: 0;
+}
+
+.worldbook-preview-section summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.worldbook-preview-overview {
+  white-space: pre-wrap;
+}
+
+.worldbook-glossary-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.worldbook-glossary-list li + li {
+  margin-top: 0.5rem;
+}
+
 .discussion-brief-dirty {
   color: #8c5a15;
 }

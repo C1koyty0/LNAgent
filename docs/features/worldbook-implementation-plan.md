@@ -318,25 +318,34 @@
 
 **任务清单**：
 
-- [ ] WK4.1 新增 worldbook-panel HTML 骨架
-- [ ] WK4.2 实现 source 编辑与 save 逻辑
-- [ ] WK4.3 实现 extract → preview 渲染
-- [ ] WK4.4 实现 apply → meta 刷新
-- [ ] WK4.5 补 worldbook 前端样式
+- [x] WK4.1 新增 worldbook-panel HTML 骨架
+- [x] WK4.2 实现 source 编辑与 save 逻辑
+- [x] WK4.3 实现 extract → preview 渲染
+- [x] WK4.4 实现 apply → meta 刷新
+- [x] WK4.5 补 worldbook 前端样式
 
 **验收**：
 
-- [ ] 项目页显示 worldbook 面板
-- [ ] 可粘贴文档并保存 source
-- [ ] 点击“提炼世界观”后展示 preview
-- [ ] 点击“应用”后 meta.world 展示更新
-- [ ] 状态指示在各步骤间正确切换
-- [ ] 不破坏现有 meta 编辑、discussion / writing 面板功能
+- [x] 项目页显示 worldbook 面板
+- [x] 可粘贴文档并保存 source
+- [x] 点击“提炼世界观”后展示 preview
+- [x] 点击“应用”后 meta.world 展示更新
+- [x] 状态指示在各步骤间正确切换
+- [x] 不破坏现有 meta 编辑、discussion / writing 面板功能
 
 **验收命令（建议）**：
 
-- `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_home_page_and_project_page_render -v`
+- `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_home_page_and_project_page_render tests.test_web_app.WebAppIntegrationTest.test_static_assets_are_served -v`
+- `python -m unittest tests.test_web_app tests.test_worldbook_web_api tests.test_worldbook_apply -v`
+- `python -m py_compile lnagent/web/app.py`
 - `node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js`
+
+**本阶段实际验证**：
+
+- [x] `python -m unittest tests.test_web_app.WebAppIntegrationTest.test_home_page_and_project_page_render tests.test_web_app.WebAppIntegrationTest.test_static_assets_are_served -v`
+- [x] `python -m unittest tests.test_web_app tests.test_worldbook_web_api tests.test_worldbook_apply -v`
+- [x] `python -m py_compile lnagent/web/app.py`
+- [x] `node --check lnagent/web/static/project.js && node --check lnagent/web/static/render.js`
 
 ---
 

@@ -586,3 +586,84 @@ function renderBulletList(items) {
   }
   return `<ul class='plain-list'>${items.map((item) => `<li>${escapeHtml(String(item))}</li>`).join("")}</ul>`;
 }
+
+function renderWorldbookStatus(status) {
+  const mapping = {
+    no_worldbook: {
+      label: "未录入",
+      note: "还没有世界观文档，可以先粘贴 source 再保存。",
+      className: "status-no_worldbook",
+      badgeClass: "worldbook-status-badge status-no_worldbook",
+    },
+    source_only: {
+      label: "已录入未提炼",
+      note: "文档已保存，下一步可提炼结构化 preview。",
+      className: "status-source_only",
+      badgeClass: "worldbook-status-badge status-source_only",
+    },
+    preview_ready: {
+      label: "已提炼待应用",
+      note: "已生成 preview，请检查后决定是否应用到 Meta 世界观。",
+      className: "status-preview_ready",
+      badgeClass: "worldbook-status-badge status-preview_ready",
+    },
+    applied: {
+      label: "已应用",
+      note: "当前 meta.world 已与 worldbook preview 同步。",
+      className: "status-applied",
+      badgeClass: "worldbook-status-badge status-applied",
+    },
+  };
+  return mapping[status] || mapping.no_worldbook;
+}
+
+function renderWorldbookPreview(payload) {
+  const structured = payload?.structured || {};
+  const overview = String(structured.overview || "").trim();
+  return {
+    overview: overview
+      ? `<strong>概览</strong><div class='canon-field-val'>${escapeHtml(overview)}</div>`
+      : "<p class='hint'>暂无概览，提炼后会显示在这里。</p>",
+    globalRules: renderWorldbookRuleList(structured.global_rules, "暂无全局规则。"),
+    scopes: renderWorldbookScopes(structured.scopes),
+    glossary: renderWorldbookGlossary(structured.glossary),
+    openQuestions: renderWorldbookRuleList(structured.open_questions, "暂无待解问题。"),
+  };
+}
+
+function renderWorldbookRuleList(items, emptyHint) {
+  if (!Array.isArray(items) || !items.length) {
+    return `<p class='hint'>${escapeHtml(emptyHint)}</p>`;
+  }
+  return renderBulletList(items.map((item) => String(item)));
+}
+
+function renderWorldbookScopes(scopes) {
+  if (!Array.isArray(scopes) || !scopes.length) {
+    return "<p class='hint'>暂无 scope 规则。</p>";
+  }
+  return scopes
+    .map((scope) => {
+      const title = `${scope.scope_type || "scope"} / ${scope.scope_id || "unknown"}`;
+      return `<div class='sub-block'><strong>${escapeHtml(title)}</strong>${renderWorldbookRuleList(scope.rules, "该 scope 暂无规则。")}</div>`;
+    })
+    .join("");
+}
+
+function renderWorldbookGlossary(entries) {
+  if (!Array.isArray(entries) || !entries.length) {
+    return "<p class='hint'>暂无术语表。</p>";
+  }
+  return `<ul class='worldbook-glossary-list'>${entries
+    .map((entry) => {
+      const term = entry.term || "未命名术语";
+      const aliases = Array.isArray(entry.aliases) && entry.aliases.length
+        ? `<div class='hint'>别名：${escapeHtml(entry.aliases.join("、"))}</div>`
+        : "";
+      const definition = entry.definition
+        ? `<div class='canon-field-val'>${escapeHtml(String(entry.definition))}</div>`
+        : "<div class='hint'>暂无定义。</div>";
+      return `<li><strong>${escapeHtml(term)}</strong>${aliases}${definition}</li>`;
+    })
+    .join("")}</ul>`;
+}
