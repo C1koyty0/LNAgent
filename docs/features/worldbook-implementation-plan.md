@@ -204,17 +204,22 @@
 
 **任务清单**：
 
-- [ ] WK2.1 实现 `apply_worldbook_to_meta(store)` 函数
-- [ ] WK2.2 验证 apply 后叙事字段未被覆盖
-- [ ] WK2.3 编写 apply 单元测试
+- [x] WK2.1 实现 `apply_worldbook_to_meta(store)` 函数
+- [x] WK2.2 验证 apply 后叙事字段未被覆盖
+- [x] WK2.3 编写 apply 单元测试
 
 **验收**：
 
-- [ ] apply 后 `meta.world.rules` 与 `structured.global_rules` 一致
-- [ ] apply 后 `meta.world.scoped` 与 `structured.scopes` 一致
-- [ ] apply 不改变 `meta.style`、`meta.pov` 等叙事字段
-- [ ] `structured.json` 不存在时 apply 报错
-- [ ] apply 后 prompt builder 注入中可见新世界观
+- [x] apply 后 `meta.world.rules` 与 `structured.global_rules` 一致
+- [x] apply 后 `meta.world.scoped` 与 `structured.scopes` 一致
+- [x] apply 不改变 `meta.style`、`meta.pov` 等叙事字段
+- [x] `structured.json` 不存在时 apply 报错
+- [x] apply 后 prompt builder 注入中可见新世界观
+
+**已完成验证**：
+
+- `python -m unittest tests.test_worldbook_apply -v` ✅（4 tests）
+- `python -m unittest tests.test_worldbook_apply tests.test_meta_schema_v2 -v` ✅（10 tests）
 
 **验收命令（建议）**：
 
